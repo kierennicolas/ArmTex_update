@@ -1,29 +1,38 @@
 #!/usr/bin/env bash
-# Milestone 1 emulator evaluation: run the test kit's programs on the
-# build.riscos.online service, which executes commands under RISC OS
-# Pyromaniac (a reimplementation of RISC OS, not RISC OS 5.30 itself).
+# Run a RISC OS kit's programs on the build.riscos.online service, which
+# executes commands under RISC OS Pyromaniac (a reimplementation of RISC OS,
+# not RISC OS 5.30 itself).
 #
-# Usage: scripts/run-emulator.sh <out-dir>
+# Usage: scripts/run-emulator.sh <kit-dir> <commands-file> <work-dir>
 #
-# Needs <out-dir>/kit/TLTest from scripts/package-testkit.sh. Downloads the
-# service's client at the version and checksum pinned in upstream/manifest.json,
-# uploads the kit with a .robuild.yaml that runs the programs, and writes the
-# service's output to <out-dir>/emulator/output.txt.
+# <kit-dir> is a kit tree with ,xxx filetype suffixes (from one of the package
+# scripts). <commands-file> holds RISC OS commands, one per line, run in order
+# with the kit as the current directory; blank lines and lines starting with
+# '#' are ignored. The service's output goes to <work-dir>/output.txt.
+#
+# The service client is downloaded at the version and checksum pinned in
+# upstream/manifest.json. The service has no SharedUnixLibrary module, so the
+# toolchain's own copy is uploaded with the kit and loaded first.
 #
 # Results are Emulator-tested at most. The service stops at the first command
-# that returns a non-zero status, so a failure early on hides later results.
-# Exits with the service's status. With ROBUILD_DRY_RUN=1 it prepares the
-# upload but neither downloads the client nor contacts the service.
+# that returns a non-zero status or an error, so order the commands with that
+# in mind. Exits with the service's status. With ROBUILD_DRY_RUN=1 it prepares
+# the upload but neither downloads the client nor contacts the service.
 
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 manifest="$root/upstream/manifest.json"
-out=$(cd "$1" && pwd)
-kit="$out/kit/TLTest"
-work="$out/emulator"
+if [ $# -ne 3 ]; then
+  echo "usage: $0 <kit-dir> <commands-file> <work-dir>" >&2
+  exit 2
+fi
+kit=$(cd "$1" && pwd)
+commands=$2
+mkdir -p "$3"
+work=$(cd "$3" && pwd)
 
-rm -rf "$work"
+rm -rf "${work:?}/stage" "$work/input.zip" "$work/output.txt"
 mkdir -p "$work/stage"
 
 dry_run=${ROBUILD_DRY_RUN:-0}
@@ -31,23 +40,22 @@ url=$(jq -r '.tools.robuild_client.url' "$manifest")
 sha256=$(jq -r '.tools.robuild_client.sha256' "$manifest")
 client="$work/riscos-build-online"
 if [ "$dry_run" != 1 ]; then
-python3 - "$url" "$client" <<'EOF'
+  python3 - "$url" "$client" <<'EOF'
 import sys, urllib.request
 url, dest = sys.argv[1], sys.argv[2]
 with urllib.request.urlopen(url, timeout=60) as response, open(dest, "wb") as handle:
     handle.write(response.read())
 EOF
-echo "$sha256  $client" | sha256sum -c -
-chmod +x "$client"
+  echo "$sha256  $client" | sha256sum -c -
+  chmod +x "$client"
 fi
 
 cp -R "$kit/." "$work/stage/"
+cp "$commands" "$work/stage/Commands,fff"
 
-# Include the SharedUnixLibrary module from the toolchain, so the programs can
-# start even though the emulated system does not provide it. UnixLib's build
-# installs the module as a program called "sul" (arm-unknown-riscos-sul in the
-# cross toolchain's bin directory); take the shortest path that contains the
-# module's title and is not an ELF file.
+# UnixLib's build installs the SharedUnixLibrary module as a program called
+# "sul" (arm-unknown-riscos-sul in the cross toolchain's bin directory); take
+# the shortest path that contains the module's title and is not an ELF file.
 sul=
 while IFS= read -r candidate; do
   if grep -aq 'SharedUnixLibrary' "$candidate" && ! head -c 4 "$candidate" | grep -aq 'ELF'; then
@@ -60,8 +68,6 @@ if [ -n "$sul" ]; then
   cp "$sul" "$work/stage/SharedULib,ffa"
 else
   echo "No SharedUnixLibrary module found in the toolchain; relying on the service"
-  echo "Files under ${GCCSDK_PREFIX:-/opt/riscos-gccsdk} with names like the module's:"
-  find "${GCCSDK_PREFIX:-/opt/riscos-gccsdk}" \( -iname '*sul*' -o -iname '*sharedul*' \) 2>/dev/null | head -20 || true
 fi
 
 {
@@ -70,28 +76,22 @@ fi
 ---
 jobs:
   build:
-    env:
-      "TLTest$Var": expected
-      "TLTEST_PLAIN": expected-plain
     script:
 YAML
   if [ -n "$sul" ]; then
     echo '      - RMEnsure SharedUnixLibrary 1.13 RMLoad SharedULib'
   fi
   echo '      - Help SharedUnixLibrary'
-  # The service stops at the first failure, and it has no VFPSupport module,
-  # so run everything soft-float first.
-  for variant in soft vfp a15 a15noua; do
-    for program in hello float cxx11 unaligned; do
-      if [ -f "$kit/$variant/$program,ff8" ]; then
-        echo "      - Echo ===== $variant $program ====="
-        echo "      - Run $variant.$program"
-      fi
-    done
-  done
-  echo '      - Echo ===== all programs ran ====='
+  while IFS= read -r line; do
+    case $line in
+      '' | '#'*) continue ;;
+    esac
+    # Quote each command as a YAML string.
+    printf '      - %s\n' "$(jq -Rn --arg v "$line" '$v')"
+  done < "$commands"
+  echo '      - Echo ===== all commands ran ====='
   echo '    artifacts:'
-  echo '      - path: BuildInfo'
+  echo '      - path: Commands'
 } > "$work/stage/.robuild.yaml"
 cat "$work/stage/.robuild.yaml"
 

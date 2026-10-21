@@ -36,6 +36,38 @@ GCCSDK's own CI (`.github/workflows/build.yaml` in that repository) builds the c
 
 The issue text specified a manually triggered toolchain workflow. `toolchain.yml` is instead also a reusable workflow that `build.yml` calls first. It costs a few seconds when the image exists, and it means a change to the toolchain pins is built and tested in the same pull request rather than needing a separate manual step. The rule that ordinary builds never rebuild GCCSDK still holds: the expensive job runs only when the tag is new.
 
+## TeX Live source
+
+The source is the `texlive-2026.1` tag of the [TeX-Live/texlive-source](https://github.com/TeX-Live/texlive-source) mirror, pinned by commit in `upstream/manifest.json`. It is the 2026 release (Subversion r78235) plus the dvipdfmx file-name quoting fix of 17 March 2026 (r78399), the newest update within the 2026 release. The mirror's `branch2026` points at the same fix; `trunk` already carries post-2026 library updates and is not used.
+
+`scripts/fetch-upstream.sh texlive-source <dir>` fetches exactly that commit (GitHub serves a commit by its hash) at depth 1 and checks it.
+
+Library versions in this source, from `libs/README`: zlib 1.3.2, libpng 1.6.55, xpdf 4.06, FreeType 2.14.1, HarfBuzz 12.3.2, graphite2 1.3.14, ICU 78.2, Lua 5.3.6, pplib 2.05.0.
+
+## Cross-building TeX Live
+
+Two stages, both in the `texlive` job of `build.yml`, inside the toolchain image:
+
+1. **Host tools** (`scripts/build-host-tools.sh`): a native build of tangle, ctangle, tie and otangle, which web2c runs on the build machine when cross-compiling, plus kpsewhich and pdfTeX for preparing texmf trees and formats later. The result is cached on the TeX Live commit, the script and the toolchain image.
+2. **Cross build** (`scripts/build-texlive.sh`): configures the whole tree for `arm-unknown-riscos` with `--disable-all-pkgs --enable-pdftex --enable-luahbtex`, runs `make -k` so one run shows every failure, then builds each library and program on its own to get a clean log for it. Answers for configure tests that cannot run when cross-compiling go in `riscos/compatibility/config.site`, each with its reason.
+
+Each component is either **required** for Milestone 2 (zlib, libpng, xpdf, kpathsea, kpsewhich) or a **probe** for later milestones (pdfTeX, FreeType, pplib, zziplib, Lua, graphite2, HarfBuzz, GMP, MPFR). `results.json` records each one's outcome and first error.
+
+### What the first cross builds taught
+
+Each of these cost a CI run to find; the fix is in the scripts.
+
+- **Static linking:** GCCSDK links against shared libraries by default, and libtool does not pass `-static` through from `CC` or `LDFLAGS`. `build-texlive.sh` puts wrappers for `arm-unknown-riscos-gcc` and `-g++` first on `PATH` that always add `-static`.
+- **C++ standard:** GCC 4.7 compiles C++98 unless told otherwise, and TeX Live's configure does not add a flag, so xpdf failed inside `<atomic>`. `CXX` includes `-std=gnu++11`; with it, xpdf 4.06 builds.
+- **Timestamps:** a git checkout writes files in no particular order, so generated files (web2c's parser, the Info manuals) can look older than their sources, and make tries to regenerate them with bison or makeinfo. `fetch-upstream.sh` gives every file the commit's timestamp.
+- **Cross tools:** passing `AR`, `RANLIB` and `STRIP` to configure also reaches web2c's helper programs, which are built for the build machine, and their library ended up without a symbol index. configure finds the cross tools from `--host` without them.
+- **Container shell:** steps in a container job run under `sh` unless told otherwise, without `pipefail`; the build job sets `bash`.
+
+### Findings from the emulator runs of kpsewhich
+
+- `SELFAUTOLOC`, `SELFAUTOPARENT` and `TEXMFDIST` come out right, as Unix-style paths, so kpathsea's self-location works under UnixLib and TeX Live's own `texmf.cnf` needs no changes.
+- Looking for its `ls-R` database, kpathsea finds both `ls-r` and `ls-R`, because RISC OS filing systems ignore case. It reads the same file twice; harmless, but worth knowing if lookups ever look duplicated.
+
 ## Executables
 
 The default (to be confirmed at Gate 1): programs are linked statically with UnixLib and converted from ELF to AIF (filetype &FF8) with GCCSDK's `elf2aif`.
@@ -97,6 +129,6 @@ The test kit is uploaded with `archive: false`, so the artifact is the RISC OS z
 
 ### What the C++ results mean for later milestones
 
-- **pdfTeX (Milestone 3)** links xpdf 4.06, which is C++. Whether that code avoids the missing features is unknown until it is compiled; Milestone 2 should try it early.
-- **LuaHBTeX (Milestone 6)** needs HarfBuzz 14.x. HarfBuzz requires C++11, and modern releases may use features GCC 4.7 lacks. Also to be tried early in Milestone 2.
+- **pdfTeX (Milestone 3)** links xpdf 4.06, which is C++. Milestone 2 found that it compiles with GCC 4.7 once `CXX` asks for C++11 (`-std=gnu++11`), and pdfTeX links ([CI run 39672805395](https://github.com/kierennicolas/ArmTex_update/actions/runs/39672805395)).
+- **LuaHBTeX (Milestone 6)** needs graphite2 1.3.14 and HarfBuzz 12.3.2 from this source. Neither configures: both run autoconf's C++11 test, which GCC 4.7 fails on a `static constexpr auto` member of a variadic class template ([CI run 39674828080](https://github.com/kierennicolas/ArmTex_update/actions/runs/39674828080)). Whether the libraries themselves compile is still unknown; Milestone 6 starts by supplying the test's answer and trying.
 - **XeTeX (Milestone 7)** is blocked with this compiler, as the precondition in the roadmap anticipated.

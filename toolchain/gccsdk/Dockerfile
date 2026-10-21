@@ -12,9 +12,14 @@ FROM ${BASE_IMAGE}
 ARG GCCSDK_REVISION=unknown
 ARG GCCSDK_PREFIX=/opt/riscos-gccsdk/arm-unknown-riscos
 
+# build-essential provides the host C and C++ compilers: a TeX Live cross
+# build compiles helper programs for the build machine, and
+# scripts/build-host-tools.sh builds tangle and friends natively. zstd lets
+# actions/cache compress quickly inside the container.
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       binutils \
+      build-essential \
       ca-certificates \
       file \
       git \
@@ -24,6 +29,7 @@ RUN apt-get update \
       unzip \
       xz-utils \
       zip \
+      zstd \
  && rm -rf /var/lib/apt/lists/*
 
 # The tarball holds the toolchain at its absolute install prefix.

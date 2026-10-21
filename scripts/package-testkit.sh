@@ -87,6 +87,23 @@ obey="$kit/RunAll,feb"
   echo "Echo Results saved in <TLTest\$Dir>.Results"
 } > "$obey"
 
+# Commands for the emulator evaluation (scripts/run-emulator.sh). The service
+# stops at the first failure and has no VFPSupport module, so every
+# soft-float program runs first.
+{
+  echo "# Run by scripts/run-emulator.sh with the kit as the current directory."
+  echo "Set TLTest\$Var expected"
+  echo "Set TLTEST_PLAIN expected-plain"
+  for variant in soft vfp a15 a15noua; do
+    for program in hello float cxx11 unaligned; do
+      if built "$program" "$variant"; then
+        echo "Echo ===== $variant $program ====="
+        echo "Run $variant.$program"
+      fi
+    done
+  done
+} > "$out/emulator-commands.txt"
+
 # BuildInfo: what was built, and how.
 {
   echo "TeX Live for RISC OS: Milestone 1 toolchain test kit"
