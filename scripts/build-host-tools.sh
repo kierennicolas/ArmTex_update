@@ -51,18 +51,20 @@ fi
 # The first make configures every module and builds the libraries the
 # enabled programs need.
 echo "Building libraries"
-if ! make -j"$jobs" > "$prefix/logs/make.log" 2>&1; then
+# MAKEINFO=true: a git checkout gives every file the same timestamp, so make
+# may want to regenerate the Info manuals, which needs makeinfo.
+if ! make -j"$jobs" MAKEINFO=true > "$prefix/logs/make.log" 2>&1; then
   tail -n 60 "$prefix/logs/make.log"
   exit 1
 fi
 
 echo "Building tangle, ctangle, tie, otangle, pdftex and kpsewhich"
-if ! make -j"$jobs" -C texk/web2c tangle ctangle tie otangle pdftex \
+if ! make -j"$jobs" MAKEINFO=true -C texk/web2c tangle ctangle tie otangle pdftex \
     > "$prefix/logs/web2c.log" 2>&1; then
   tail -n 60 "$prefix/logs/web2c.log"
   exit 1
 fi
-if ! make -j"$jobs" -C texk/kpathsea kpsewhich > "$prefix/logs/kpathsea.log" 2>&1; then
+if ! make -j"$jobs" MAKEINFO=true -C texk/kpathsea kpsewhich > "$prefix/logs/kpathsea.log" 2>&1; then
   tail -n 60 "$prefix/logs/kpathsea.log"
   exit 1
 fi

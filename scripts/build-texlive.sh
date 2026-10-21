@@ -73,8 +73,12 @@ configure_args=(
   --enable-missing
   --disable-shared
   --disable-native-texlive-build
-  CC="$target-gcc"
-  CXX="$target-g++"
+  # -static: GCCSDK links against shared libraries by default, and libtool
+  # drops -static from LDFLAGS, so it goes in the compiler command itself.
+  # -std=gnu++11: GCC 4.7 defaults to C++98, and the C++ libraries (xpdf,
+  # HarfBuzz, graphite2) need C++11.
+  CC="$target-gcc -static"
+  CXX="$target-g++ -static -std=gnu++11"
   AR="$target-ar"
   RANLIB="$target-ranlib"
   STRIP="$target-strip"
@@ -82,8 +86,12 @@ configure_args=(
   BUILDCXX=g++
   "CFLAGS=-O2 $variant_flags"
   "CXXFLAGS=-O2 $variant_flags"
-  LDFLAGS=-static
 )
+
+# A git checkout gives every file the same timestamp, so make may think the
+# generated Info manuals are out of date; regenerating them needs makeinfo,
+# which the build does not otherwise use.
+make_vars=(MAKEINFO=true)
 
 records="$out/records.jsonl"
 : > "$records"
@@ -132,7 +140,7 @@ fi
 # enabled programs need. Keep going past failures to learn as much as
 # possible from one run.
 echo "Building libraries (make -k)"
-make -k -j"$jobs" > "$out/logs/make.log" 2>&1 || true
+make -k -j"$jobs" "${make_vars[@]}" > "$out/logs/make.log" 2>&1 || true
 
 # Libraries: name|kind|directory under the build tree
 libraries=(
@@ -156,7 +164,7 @@ for entry in "${libraries[@]}"; do
   if [ ! -f "$dir/Makefile" ]; then
     if [ -f "$dir/config.log" ]; then
       cp "$dir/config.log" "$out/logs/$log"
-      record "$name" "$kind" configure-failed "$log" "$(grep -m1 -E 'error' "$dir/config.log" | cut -c1-200)"
+      record "$name" "$kind" configure-failed "$log" "$(grep -m1 -E 'configure: error' "$dir/config.log" | cut -c1-200)"
     else
       : > "$out/logs/$log"
       record "$name" "$kind" not-configured "$log"
@@ -164,7 +172,7 @@ for entry in "${libraries[@]}"; do
     continue
   fi
   # Re-run make in the module on its own so its log is not interleaved.
-  if make -C "$dir" > "$out/logs/$log" 2>&1 && find "$dir" -name '*.a' -newer "$out/logs/configure.log" | grep -q .; then
+  if make -C "$dir" "${make_vars[@]}" > "$out/logs/$log" 2>&1 && find "$dir" -name '*.a' -newer "$out/logs/configure.log" | grep -q .; then
     record "$name" "$kind" built "$log"
   else
     record "$name" "$kind" build-failed "$log" "$(first_error "$out/logs/$log")"
@@ -185,7 +193,7 @@ for entry in "${programs[@]}"; do
     record "$name" "$kind" not-configured "$log"
     continue
   fi
-  if ! make -C "$dir" "$make_target" > "$out/logs/$log" 2>&1 || [ ! -f "$binary" ]; then
+  if ! make -C "$dir" "${make_vars[@]}" "$make_target" > "$out/logs/$log" 2>&1 || [ ! -f "$binary" ]; then
     record "$name" "$kind" build-failed "$log" "$(first_error "$out/logs/$log")"
     continue
   fi
