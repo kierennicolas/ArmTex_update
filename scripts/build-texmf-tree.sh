@@ -143,7 +143,7 @@ step mktexlsr-maps perl "$scripts/mktexlsr.pl" "$tree/texmf-var"
 for fmt in $formats; do
   step "fmtutil-$fmt" perl "$scripts/fmtutil.pl" --sys --byfmt "$fmt"
 done
-cp "$tree"/texmf-var/web2c/*/*.log "$logs/" 2> /dev/null || true
+cp "$tree"/texmf-var/web2c/*/*.log "$tree"/texmf-var/web2c/*.log "$logs/" 2> /dev/null || true
 step mktexlsr-final perl "$scripts/mktexlsr.pl" "$tree/texmf-dist" "$tree/texmf-var"
 
 # Record what was built.
@@ -153,6 +153,8 @@ tree, dest, packages = sys.argv[1], sys.argv[2], sys.argv[3:]
 formats = {}
 web2c = os.path.join(tree, "texmf-var", "web2c")
 for engine in sorted(os.listdir(web2c)) if os.path.isdir(web2c) else []:
+    if not os.path.isdir(os.path.join(web2c, engine)):
+        continue  # updmap.log and the like
     for name in sorted(os.listdir(os.path.join(web2c, engine))):
         if name.endswith(".fmt"):
             formats[name[:-4]] = {"engine": engine,
