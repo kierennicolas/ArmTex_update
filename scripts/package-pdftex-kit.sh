@@ -99,6 +99,33 @@ for texmf in texmf-dist texmf-var; do
   mv "$tlout/kit/ls-R.tmp" "$kit/$texmf/ls-R,fff"
 done
 
+# Names that may not survive on a RISC OS filing system: characters that are
+# special in RISC OS paths, or two names in a directory that differ only in
+# case (FileCore ignores case). Reported, not fixed: it is for Gate 3 to show
+# whether any matters.
+python3 - "$kit" <<'EOF'
+import os, re, sys
+kit = sys.argv[1]
+special = re.compile(r'[$&@^%#*\\:"|<>\s]')
+problems = 0
+for base, dirs, files in os.walk(kit):
+    seen = {}
+    for name in dirs + files:
+        plain = re.sub(r",[0-9a-f]{3}$", "", name)
+        rel = os.path.relpath(os.path.join(base, plain), kit)
+        if special.search(plain):
+            print(f"WARNING: {rel}: a character special in RISC OS paths")
+            problems += 1
+        if len(plain) > 255:
+            print(f"WARNING: {rel}: longer than 255 characters")
+            problems += 1
+        other = seen.setdefault(plain.lower(), plain)
+        if other != plain:
+            print(f"WARNING: {rel}: differs only in case from {other}")
+            problems += 1
+print(f"RISC OS name check: {problems} problem(s)")
+EOF
+
 cp "$root/tests/documents/storytest.tex" "$kit/Tests/storytest.tex,fff"
 cp "$root/tests/documents/test.tex" "$kit/Tests/test.tex,fff"
 

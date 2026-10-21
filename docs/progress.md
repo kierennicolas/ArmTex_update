@@ -1,6 +1,6 @@
 # Progress
 
-**Current milestones:** M1 — toolchain, C/C++ capability and first hardware artifact (waiting for Gate 1); M2 — pinned upstream, host tools and cross-configuration (host-side work under way while Gate 1 is pending).
+**Current milestones:** M1 (waiting for Gate 1), M2 (waiting for Gate 2), M3 — pdfTeX (host side done and Emulator-tested; Gate 3 kit ready).
 
 Status levels are defined in [`CLAUDE.md`](../CLAUDE.md#status-levels). "Local" notes describe checks run on a development machine; they do not count towards a status level.
 
@@ -39,6 +39,21 @@ Reference CI runs: [39670666067](https://github.com/kierennicolas/ArmTex_update/
 | Probe: pdftex | Cross-compiled | Links statically, converts to AIF and passes the binary checks. Not yet run anywhere: it needs a texmf tree and format files (Milestone 3) |
 | Gate 2 kit (`package-kpse-kit.sh`) | Host-tested | [39674828080](https://github.com/kierennicolas/ArmTex_update/actions/runs/39674828080): artifact `TLKpse-327a1e4ce122.zip`; `test-kpse-kit.sh` finds every file through the tree's `ls-R` with the native kpsewhich, in place and moved; the emulator run gives the same answers as before |
 
+## Milestone 3 components
+
+Reference CI run: [39693205158](https://github.com/kierennicolas/ArmTex_update/actions/runs/39693205158), all jobs green ([#16](https://github.com/kierennicolas/ArmTex_update/pull/16)).
+
+| Component | Status | Evidence and notes |
+|---|---|---|
+| texmf tree (`build-texmf-tree.sh`) | Host-tested | scheme-basic from the pinned image: 116 packages, 5853 files, 82 MiB. Configuration written by TeX Live's own TLUtils; `mktexlsr`, `updmap-sys` and `fmtutil-sys` from the tree, run with the host tools |
+| Formats `pdftex` and `pdflatex` | Host-tested | Made by the host pdfTeX from the pinned source: 173 KiB and 2232 KiB |
+| Test documents on the host (`test-documents.sh`) | Host-tested | `storytest.tex` and `test.tex` each give one page, reproducibly (two runs, identical PDFs) |
+| pdftex on RISC OS | Cross-compiled; Emulator-tested | Under RISC OS Pyromaniac, loads the host-made formats and typesets both documents. The PDFs are identical to the host's apart from `/ID`, which hashes the working directory. Indicative only: soft-float build, not RISC OS 5.30 |
+| Emulator comparison (`compare-emulator-pdfs.sh`) | Host-tested | Blanks `/ID`, compares byte for byte, and shows any other difference in context |
+| `validate-pdf.sh` | Implemented | Checks structure, version, producer, page sizes, fonts and text against a reference. Local: tried on identical, re-dated, different and truncated PDFs. Not run in CI (the toolchain image has no qpdf or poppler-utils) |
+| Gate 3 kit (`package-pdftex-kit.sh`) | Host-tested | Artifact `TLPdfTeX-<commit>.zip`, 34.7 MB, 5682 tree files; procedure in [`testing.md`](testing.md#gate-3-pdftex-on-titanium) |
+| `!TeXLive` launcher | Not started | Milestone 3's remaining work item |
+
 ## Known failures
 
 - **Emulator, VFP builds:** stop at start-up with "This program requires version 0.02 or later of the VFPSupport module". Pyromaniac does not provide that module, so VFP builds can only be tested on hardware.
@@ -46,12 +61,13 @@ Reference CI runs: [39670666067](https://github.com/kierennicolas/ArmTex_update/
 
 ## Untested
 
-- Everything on RISC OS. Gate 1 is the first hardware test.
+- Everything on RISC OS hardware. Gates 1, 2 and 3 are open.
+- The VFP and Cortex-A15 builds of TeX Live: only soft-float is built, as the emulator can only run that.
 
 ## Next priorities
 
 1. Gate 1 ([#3](https://github.com/kierennicolas/ArmTex_update/issues/3)) and Gate 2 ([#14](https://github.com/kierennicolas/ArmTex_update/issues/14)): waiting for the maintainer's reports on Titanium.
-2. Milestone 3 host-side preparation: choose and pin the support-file snapshot, generate formats with the host pdfTeX, and package a pdfTeX kit for the emulator.
+2. Gate 3: the pdfTeX kit on Titanium. Then the minimal `!TeXLive` launcher, so `pdflatex` works from the command line.
 3. Milestone 6 ([#8](https://github.com/kierennicolas/ArmTex_update/issues/8)): supply configure's C++11 answer for graphite2 and HarfBuzz in `config.site`, to find out whether the libraries themselves compile with GCC 4.7.
 4. Look for a C++17-capable RISC OS compiler (the GCC 8 and 10 work mentioned in community sources) before Milestone 7 ([#9](https://github.com/kierennicolas/ArmTex_update/issues/9)).
 
