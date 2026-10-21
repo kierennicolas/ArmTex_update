@@ -186,6 +186,40 @@ jobs:
             out/emulator/stage/.robuild.yaml
           if-no-files-found: warn
 
+  # The pinned support-file snapshot (macros, fonts, configuration). For
+  # Milestone 2 this checks the pin and fetches a few packages; Milestone 3
+  # builds a texmf tree from it.
+  support-files:
+    name: Support-file snapshot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fetch and check the pinned package database and some packages
+        id: fetch
+        run: |
+          mkdir -p sf-logs
+          scripts/fetch-upstream.sh support-files sf plain latex cm amsfonts 2>&1 | tee sf-logs/fetch.log
+
+      - name: Size of scheme-basic
+        if: steps.fetch.outcome == 'success'
+        run: |
+          db=sf/tlpkg/texlive.tlpdb
+          mapfile -t packages < <(python3 scripts/lib/tlpdb.py resolve "$db" scheme-basic)
+          bytes=$(python3 scripts/lib/tlpdb.py size "$db" "${packages[@]}")
+          echo "scheme-basic: ${#packages[@]} packages, $((bytes / 1048576)) MiB of containers" | tee -a sf-logs/fetch.log
+
+      - name: Annotations
+        if: always()
+        run: |
+          level=notice
+          if [ "${{ steps.fetch.outcome }}" != success ]; then level=error; fi
+          scripts/ci-annotate.sh "$level" "Support-file snapshot" sf-logs/fetch.log 60
+
   texlive:
     name: TeX Live cross build (Milestone 2)
     needs: toolchain
