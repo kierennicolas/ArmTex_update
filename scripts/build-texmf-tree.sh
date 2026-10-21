@@ -87,9 +87,13 @@ for need in tlpkg/TeXLive/TLUtils.pm texmf-dist/web2c/texmf.cnf texmf-dist/web2c
   texmf-dist/scripts/texlive/mktexlsr.pl texmf-dist/scripts/texlive/updmap.pl \
   texmf-dist/scripts/texlive/fmtutil.pl; do
   if [ ! -f "$tree/$need" ]; then
-    owner=$(awk -v f="$need" '/^name /{n=$2} $1 == f {print n}' "$db" | head -n 1)
+    # The database lists relocatable files as RELOC/..., the rest as they are.
+    owner=$(awk -v f="$need" -v r="RELOC/${need#texmf-dist/}" \
+      '/^name /{n=$2} $1 == f || $1 == r {print n}' "$db" | head -n 1)
     if grep -qx "${owner:-none}" "$logs/packages.txt"; then where="which is in the list"; else where="which is not in the list"; fi
     echo "error: the tree has no $need; the database puts it in package '${owner:-none}', $where" >&2
+    # Anything else with the same name, in case it has moved.
+    awk -v b="/${need##*/}" '/^name /{n=$2} /^ / && index($1, b) && substr($1, length($1) - length(b) + 1) == b {print "  " n ": " $1}' "$db" | head -n 5 >&2
     missing=$((missing + 1))
   fi
 done
