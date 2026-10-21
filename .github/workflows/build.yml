@@ -81,14 +81,17 @@ jobs:
           arm-unknown-riscos-g++ --version | head -1
 
       - name: Build test programs
+        id: build
         run: |
           mkdir -p out-logs
           scripts/build-toolchain-tests.sh out 2>&1 | tee out-logs/build-tests.log
 
       - name: Check binaries
+        id: check
         run: scripts/check-binaries.sh out 2>&1 | tee out-logs/check-binaries.log
 
       - name: Check that the binary checks reject bad files
+        id: negative
         run: tests/scripts/test-check-binaries.sh out 2>&1 | tee out-logs/test-check-binaries.log
 
       - name: Package test kit
@@ -136,11 +139,15 @@ jobs:
             scripts/summarise-results.sh out > out-logs/summary.md
             scripts/ci-annotate.sh notice "Build results" out-logs/summary.md 200
           fi
-          for f in build-tests check-binaries test-check-binaries package-testkit; do
-            if [ -f "out-logs/$f.log" ] && grep -qE '^(FAIL|error)|: error' "out-logs/$f.log"; then
-              scripts/ci-annotate.sh error "$f output, last lines" "out-logs/$f.log" 60
+          annotate_failure() {
+            if [ "$1" = failure ]; then
+              scripts/ci-annotate.sh error "$2 output, last lines" "out-logs/$2.log" 60
             fi
-          done
+          }
+          annotate_failure "${{ steps.build.outcome }}" build-tests
+          annotate_failure "${{ steps.check.outcome }}" check-binaries
+          annotate_failure "${{ steps.negative.outcome }}" test-check-binaries
+          annotate_failure "${{ steps.kit.outcome }}" package-testkit
 
       - name: Annotate emulator output
         if: always()
