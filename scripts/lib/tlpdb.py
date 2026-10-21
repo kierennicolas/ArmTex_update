@@ -107,7 +107,14 @@ def download(url, dest):
                     if not chunk:
                         break
                     handle.write(chunk)
+                final_url = response.geturl()
+                content_type = response.headers.get("Content-Type", "none")
             os.replace(partial, dest)
+            # Shown so that a page served in place of a file (an error page,
+            # a bot check) is easy to recognise in the log.
+            note = "" if final_url == url else f", redirected to {final_url}"
+            print(f"downloaded {url}: {os.path.getsize(dest)} bytes, "
+                  f"Content-Type {content_type}{note}", file=sys.stderr)
             return
         except OSError as error:  # URLError and HTTPError are OSErrors
             if os.path.exists(partial):

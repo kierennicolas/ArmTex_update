@@ -53,6 +53,14 @@ fetch_support_files() {
   fi
   have=$(sha256sum "$db" | cut -d' ' -f1)
   echo "$input: $base/$path has SHA-256 $have"
+  # An xz file starts with FD 37 7A 58 5A 00. Anything else (an error page, a
+  # bot check) is shown, briefly, so the log says what was served instead.
+  if [ "$(head -c 6 "$db" | od -An -tx1 | tr -d ' \n')" != fd377a585a00 ]; then
+    echo "error: $base/$path is not an xz file; it begins:" >&2
+    head -c 600 "$db" | tr -c '[:print:]\n' '?' >&2
+    echo >&2
+    exit 1
+  fi
   if [ -z "$pin" ]; then
     echo "error: .texlive.support_files.tlpdb.sha256 is empty; pin the value above after checking it" >&2
     exit 1
