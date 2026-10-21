@@ -129,6 +129,7 @@ Gate 3 is the key test of Milestone 3: pdfTeX, cross-compiled from TeX Live 2026
 | `texmf-var` | what the build machine generated: the `pdftex` and `pdflatex` formats, font maps, hyphenation settings |
 | `Tests.storytest/tex` | plain TeX: Knuth's `story.tex` |
 | `Tests.test/tex` | the reference LaTeX document from the roadmap |
+| `Tests.Reference` | the PDFs of both documents made on the build machine, for comparison |
 | `RunTests` | Obey file that typesets both and saves `Results` |
 
 `RunTests` sets `SOURCE_DATE_EPOCH` and `FORCE_SOURCE_DATE`, so the PDFs carry fixed dates and can be compared byte for byte with the references made on the build machine. It runs `pdftex` for the plain TeX document and `pdftex -progname=pdflatex` for the LaTeX one, which loads the `pdflatex` format as running the program under the name `pdflatex` would.
@@ -148,7 +149,7 @@ Gate 3 is the key test of Milestone 3: pdfTeX, cross-compiled from TeX Live 2026
 |---|---|
 | `pdftex storytest.tex` | exit status 0; the log ends with `Output written on storytest.pdf (1 page, …)` |
 | `pdflatex test.tex` | exit status 0; the log ends with `Output written on test.pdf (1 page, …)` |
-| Each PDF | passes `scripts/validate-pdf.sh` against the reference of the same name in the run's `texlive-build-record` artifact (`tl-docs/`); ideally identical to it |
-| Each PDF, by eye | the short story in Computer Modern; the LaTeX page with a numbered section heading and two displayed equations |
+| Each PDF | passes `scripts/validate-pdf.sh` against the reference of the same name in `Tests.Reference`; expected to be identical to it apart from `/ID`, as in the emulator |
+| Each PDF, by eye | looks the same as its reference: the short story in Computer Modern; the LaTeX page with a numbered section heading and two displayed equations |
 
 If pdfTeX stops while loading a format (a "fatal format file error", or a format "made by different executable version"), the host-made formats do not suit the RISC OS build; that is a result in itself and decides the format question for Milestone 3. Report the log.

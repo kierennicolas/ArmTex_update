@@ -6,8 +6,9 @@
 #
 # Both should be made with the same SOURCE_DATE_EPOCH and FORCE_SOURCE_DATE=1
 # (the Milestone 3 kits and scripts/test-documents.sh do this), in which case
-# a correct RISC OS build is expected to produce an identical file. If the
-# files differ, the checks below say how much:
+# a correct RISC OS build is expected to produce the same file apart from the
+# /ID, which hashes the working directory. If the files differ otherwise, the
+# checks below say how much:
 #
 #   structure  qpdf --check finds no errors in <pdf>
 #   version    the same PDF version and producer
@@ -45,9 +46,25 @@ result() { # result <PASS|FAIL> <check> <detail>
   if [ "$1" = FAIL ]; then failures=$((failures + 1)); fi
 }
 
+# pdfTeX's /ID hashes the working directory and output file name, so it
+# differs between machines even when everything else is the same.
+same_but_id() {
+  python3 - "$1" "$2" <<'EOF'
+import re, sys
+def blank(data):
+    return re.sub(rb"/ID\s*\[\s*<[0-9A-Fa-f]*>\s*<[0-9A-Fa-f]*>\s*\]",
+                  lambda m: re.sub(rb"[0-9A-Fa-f]", b"0", m.group(0)), data)
+a, b = (blank(open(path, "rb").read()) for path in sys.argv[1:3])
+sys.exit(0 if a == b else 1)
+EOF
+}
+
 if cmp -s "$pdf" "$ref"; then
   identical=1
   result PASS identical "the two files are the same, byte for byte ($(wc -c < "$pdf") bytes)"
+elif same_but_id "$pdf" "$ref"; then
+  identical=2
+  result PASS identical "the same apart from /ID, which hashes the working directory ($(wc -c < "$pdf") bytes)"
 else
   identical=0
   echo "INFO identical: the files differ ($(wc -c < "$pdf") and $(wc -c < "$ref") bytes); comparing their contents"
@@ -119,6 +136,8 @@ if [ "$failures" -ne 0 ]; then
 fi
 if [ "$identical" = 1 ]; then
   echo "VERDICT: PASS (identical to the reference)"
+elif [ "$identical" = 2 ]; then
+  echo "VERDICT: PASS (identical to the reference apart from /ID)"
 else
   echo "VERDICT: PASS (not identical, but the same structure, pages, fonts and text)"
 fi

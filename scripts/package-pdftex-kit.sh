@@ -128,6 +128,11 @@ EOF
 
 cp "$root/tests/documents/storytest.tex" "$kit/Tests/storytest.tex,fff"
 cp "$root/tests/documents/test.tex" "$kit/Tests/test.tex,fff"
+# The build machine's PDFs of the same documents, for comparison.
+mkdir -p "$kit/Tests/Reference"
+for doc in storytest test; do
+  cp "$docs/$doc.pdf" "$kit/Tests/Reference/$doc.pdf,adf"
+done
 
 # The two test runs, as RISC OS commands. pdftex -progname=pdflatex loads the
 # pdflatex format, as running it under the name pdflatex would.
@@ -175,6 +180,8 @@ pdfTeX from TeX Live 2026, cross-compiled for RISC OS, with a TeX Live tree
 2. Run RunTests. It typesets Tests.storytest/tex (plain TeX) and
    Tests.test/tex (LaTeX), writing storytest/pdf and test/pdf, with their
    logs, in Tests. Its own output goes in a file called Results here.
+   Tests.Reference holds the same PDFs made on the build machine; yours
+   should look the same.
 3. If RunTests stops with an error, note it, then close Results: press F12,
    type Spool and press Return.
 4. Report Results, the two PDFs and the two logs on the Gate 3 issue, as

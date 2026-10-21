@@ -532,7 +532,8 @@ jobs:
             tl-logs/
             host-tools/host-tools.json
             host-tools/logs/
-            tl-out/kit/
+            tl-out/kit/TLKpse/
+            tl-out/kit/*-files.txt
             tl-out/emulator/output.txt
             tl-tree/tree.json
             tl-tree/logs/
