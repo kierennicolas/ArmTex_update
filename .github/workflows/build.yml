@@ -194,15 +194,18 @@ jobs:
           if-no-files-found: warn
 
   # The pinned support files (macros, fonts, configuration) from the TeX Live
-  # 2026 image. For Milestone 2 this checks the pins and takes a few packages;
-  # Milestone 3 builds a texmf tree from them. The packages are cached, so the
+  # 2026 image: the packages of scheme-basic, checked against every pin. The
+  # TeX Live job builds a tree from them. The packages are cached, so the
   # 6.3 GB image is only downloaded when the pins or the package list change.
   support-files:
     name: Support files
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    outputs:
+      cache-key: ${{ steps.key.outputs.key }}
     env:
-      PACKAGES: plain latex cm amsfonts
+      # With every package they depend on.
+      PACKAGES: scheme-basic
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -265,8 +268,10 @@ jobs:
           scripts/ci-annotate.sh "$level" "Support files" sf-logs/fetch-short.log 60
 
   texlive:
-    name: TeX Live cross build (Milestone 2)
-    needs: toolchain
+    name: TeX Live cross build
+    needs: [toolchain, support-files]
+    # The cross build does not need the support files; only the tree does.
+    if: always() && needs.toolchain.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:
@@ -375,9 +380,32 @@ jobs:
           archive: false
           if-no-files-found: error
 
+      # Milestone 3: the texmf tree, font maps and formats, made on the host
+      # with the host tools and TeX Live's own scripts.
+      - name: Restore the support files
+        id: sf
+        if: always() && steps.hosttools.outcome != 'failure' && needs.support-files.result == 'success'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: sf
+          key: ${{ needs.support-files.outputs.cache-key }}
+          fail-on-cache-miss: true
+
+      - name: Build the texmf tree and formats
+        id: tree
+        if: always() && steps.sf.outcome == 'success'
+        run: scripts/build-texmf-tree.sh sf host-tools tl-tree 2>&1 | tee tl-logs/texmf-tree.log
+
       - name: Job summary and annotations
         if: always()
         run: |
+          if [ -f tl-tree/tree.json ]; then
+            grep -E '^[0-9]+ packages' tl-logs/texmf-tree.log > tl-logs/texmf-tree-summary.txt || true
+            scripts/ci-annotate.sh notice "texmf tree and formats" tl-logs/texmf-tree-summary.txt 5
+          fi
+          if [ "${{ steps.tree.outcome }}" = failure ]; then
+            scripts/ci-annotate.sh error "texmf tree and formats, last lines" tl-logs/texmf-tree.log 60
+          fi
           if [ -f tl-out/emulator/output.txt ]; then
             # kpsewhich's -debug output is long; annotate it separately, keeping
             # only the lines about the search itself.
@@ -439,4 +467,6 @@ jobs:
             host-tools/logs/
             tl-out/kit/
             tl-out/emulator/output.txt
+            tl-tree/tree.json
+            tl-tree/logs/
           if-no-files-found: warn

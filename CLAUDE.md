@@ -117,6 +117,7 @@ Created as the milestones need them. Keep this table current.
 | `scripts/summarise-texlive.sh` | Markdown summary of the TeX Live cross build's `results.json` | M2 |
 | `scripts/package-kpse-kit.sh` | Package the Gate 2 kit: cross-compiled kpsewhich with a small TeX Live-style tree | M2 |
 | `scripts/test-kpse-kit.sh` | Check the Gate 2 kit's tree and `ls-R` with the native kpsewhich, in place and moved | M2 |
+| `scripts/build-texmf-tree.sh` | Build the texmf tree from the support files, and its font maps and formats with the host tools and TeX Live's own scripts (uses `scripts/lib/tl-postinstall.pl`) | M3 |
 | `scripts/test-build.sh` | Host-side tests and output validation | Planned |
 | `scripts/validate-pdf.sh` | Check a PDF produced on hardware against a host-produced reference | Planned |
 | `scripts/package-release.sh` | Build the `!TeXLive` archive with filetypes preserved | Planned |

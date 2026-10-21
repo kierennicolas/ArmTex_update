@@ -77,6 +77,8 @@ runfiles size=1
 name nochecksum
 category Package
 revision 1
+runfiles size=1
+ texmf-dist/tex/generic/nochecksum/nochecksum.tex
 """
 
 
@@ -204,6 +206,53 @@ class TlpdbTest(unittest.TestCase):
 
         image = NoArchive({"tlpkg/texlive.tlpdb": b""})
         self.assertEqual(tlpdb.extract(self.records, image, str(self.dest), ["plain", "latex"]), 2)
+
+    def test_packages_without_files_need_no_container(self):
+        self.assertEqual(tlpdb.extract(self.records, self.image, str(self.dest),
+                                       ["scheme-tiny", "collection-tiny", "plain"]), 0)
+        self.assertEqual(tlpdb.check(self.records, str(self.dest),
+                                     ["scheme-tiny", "collection-tiny", "plain"]), 0)
+        self.assertFalse((self.dest / "scheme-tiny.tar.xz").exists())
+
+    def test_subset_keeps_whole_records(self):
+        status, out = self.run_main("subset", str(self.db), "plain")
+        self.assertEqual(status, 0)
+        self.assertTrue(out.startswith("name 00texlive.config\n"))
+        self.assertIn("name plain\n", out)
+        self.assertIn(" texmf-dist/tex/plain/base/plain.tex\n", out)
+        self.assertNotIn("name latex\n", out)
+        # Records are separated by exactly one blank line, as in TeX Live.
+        self.assertIn("depend revision/78500\n\nname plain\n", out)
+        subset = self.dir / "subset.tlpdb"
+        subset.write_text(out)
+        self.assertEqual(set(tlpdb.parse(subset)), {"00texlive.config", "plain"})
+
+    def test_unpack_relocates(self):
+        import tarfile
+        container = self.dir / "pkg.tar.xz"
+        payload = self.dir / "payload"
+        (payload / "RELOC" / "tex" / "plain" / "base").mkdir(parents=True)
+        (payload / "RELOC" / "tex" / "plain" / "base" / "plain.tex").write_text("\\dump\n")
+        (payload / "tlpkg" / "tlpobj").mkdir(parents=True)
+        (payload / "tlpkg" / "tlpobj" / "pkg.tlpobj").write_text("name pkg\n")
+        with tarfile.open(container, "w:xz") as archive:
+            archive.add(payload / "RELOC", arcname="RELOC")
+            archive.add(payload / "tlpkg", arcname="tlpkg")
+        tree = self.dir / "tree"
+        self.assertEqual(tlpdb.unpack(str(container), str(tree)), 2)
+        self.assertEqual((tree / "texmf-dist" / "tex" / "plain" / "base" / "plain.tex").read_text(), "\\dump\n")
+        self.assertTrue((tree / "tlpkg" / "tlpobj" / "pkg.tlpobj").exists())
+        self.assertFalse((tree / "RELOC").exists())
+
+    def test_unpack_refuses_unsafe_paths(self):
+        import tarfile
+        container = self.dir / "bad.tar.xz"
+        with tarfile.open(container, "w:xz") as archive:
+            info = tarfile.TarInfo("RELOC/../../escape")
+            info.size = 0
+            archive.addfile(info, io.BytesIO(b""))
+        with self.assertRaises(ValueError):
+            tlpdb.unpack(str(container), str(self.dir / "tree"))
 
     def test_extract_from_a_real_image(self):
         with open(os.path.join(ROOT, "tests", "fixtures", "rockridge.iso.xz"), "rb") as handle:

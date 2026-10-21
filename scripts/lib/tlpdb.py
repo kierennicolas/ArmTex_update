@@ -31,9 +31,18 @@ Usage:
         project's own build, not from TeX Live.
     tlpdb.py size TLPDB PKG...
         Print the total size in bytes of the named packages' containers.
+    tlpdb.py subset TLPDB PKG...
+        Print a database holding only the named packages (and the
+        00texlive.config record), as an installation's tlpkg/texlive.tlpdb.
+    tlpdb.py unpack DIR TREE PKG...
+        Unpack DIR/PKG.tar.xz into the tree TREE for each PKG, putting
+        relocatable files (RELOC/...) under texmf-dist/. Exits 1 if a
+        container is missing.
     tlpdb.py check TLPDB DIR PKG...
         Check that DIR holds PKG.tar.xz for each PKG, with the size and
-        SHA-512 the database gives. Exits 1 if any is missing or wrong.
+        SHA-512 the database gives. A package with no container and no files
+        (a scheme or collection, in some databases) needs none. Exits 1 if
+        any is missing or wrong.
     tlpdb.py extract TLPDB IMAGE DIR PKG...
         Copy each PKG's container out of the ISO image IMAGE into DIR as
         PKG.tar.xz (no dependency expansion), and check its size and SHA-512.
@@ -74,6 +83,49 @@ def parse(path):
             elif current is not None:
                 current.setdefault(key, []).append(value)
     return records
+
+
+def raw_records(path):
+    """Return {name: record text} for every record, file lists included."""
+    records = {}
+    lines = []
+    with open(path, encoding="utf-8", errors="surrogateescape") as handle:
+        for raw in list(handle) + ["\n"]:
+            if raw.strip():
+                lines.append(raw if raw.endswith("\n") else raw + "\n")
+                continue
+            if lines:
+                key, _, value = lines[0].rstrip("\n").partition(" ")
+                if key == "name":
+                    records[value] = "".join(lines)
+                lines = []
+    return records
+
+
+def unpack(container, tree):
+    """Unpack a package container into a TeX Live tree. Paths starting with
+    RELOC/ belong in texmf-dist/; the rest (tlpkg/, texmf-dist/, bin/) are
+    already relative to the tree's root. Returns the number of files."""
+    import tarfile
+
+    count = 0
+    with tarfile.open(container, "r:xz") as archive:
+        members = []
+        for member in archive.getmembers():
+            name = member.name
+            if name == "RELOC" or name.startswith("RELOC/"):
+                member.name = "texmf-dist" + name[len("RELOC"):]
+            parts = member.name.split("/")
+            if member.name.startswith("/") or ".." in parts:
+                raise ValueError(f"{container}: unsafe path {name}")
+            if member.isfile():
+                count += 1
+            members.append(member)
+        if hasattr(tarfile, "data_filter"):
+            archive.extractall(tree, members=members, filter="data")
+        else:  # Python before 3.12; the paths were checked above
+            archive.extractall(tree, members=members)
+    return count
 
 
 def first(record, key, default=None):
@@ -161,14 +213,21 @@ def digests(path):
     return size, sha256.hexdigest(), sha512.hexdigest()
 
 
+NO_FILES = "no files"
+
+
 def expected(records, name):
-    """(size, SHA-512) the database gives for a package, or a reason why not."""
+    """(size, SHA-512) the database gives for a package's container, or
+    (None, reason). The reason is NO_FILES for a package with no container
+    and no files, which there is nothing to take."""
     record = records.get(name)
     if record is None:
         return None, "not in the database"
     size = first(record, "containersize")
     checksum = first(record, "containerchecksum")
     if size is None or checksum is None:
+        if not any(key in record for key in ("runfiles", "binfiles", "docfiles", "srcfiles")):
+            return None, NO_FILES
         return None, "the database gives no container size or checksum"
     return (int(size), checksum), None
 
@@ -181,7 +240,7 @@ def check(records, dest, names):
         path = os.path.join(dest, f"{name}.tar.xz")
         if want is not None:
             reason = "missing" if not os.path.exists(path) else check_container(path, *want)
-        if reason is not None:
+        if reason is not None and reason != NO_FILES:
             print(f"FAIL {name}: {reason}")
             failures += 1
     return failures
@@ -212,6 +271,9 @@ def extract(records, image, dest, names):
     failures = 0
     for name in names:
         want, reason = expected(records, name)
+        if reason == NO_FILES:
+            print(f"ok {name}: no container, no files")
+            continue
         if want is None:
             print(f"FAIL {name}: {reason}")
             failures += 1
@@ -287,6 +349,27 @@ def main(argv):
     if command == "digests" and len(args) == 1:
         size, sha256, sha512 = digests(args[0])
         print(f"size {size}\nsha256 {sha256}\nsha512 {sha512}")
+        return 0
+    if command == "subset" and len(args) >= 2:
+        raw = raw_records(args[0])
+        missing = [name for name in args[1:] if name not in raw]
+        if missing:
+            print(f"error: not in the database: {' '.join(missing)}", file=sys.stderr)
+            return 1
+        names = ["00texlive.config"] if "00texlive.config" in raw else []
+        names += sorted(set(args[1:]) - {"00texlive.config"})
+        sys.stdout.write("\n".join(raw[name] for name in names))
+        return 0
+    if command == "unpack" and len(args) >= 3:
+        total = unpacked = 0
+        for name in args[2:]:
+            container = os.path.join(args[0], f"{name}.tar.xz")
+            if not os.path.exists(container):
+                print(f"error: {container} not found", file=sys.stderr)
+                return 1
+            total += unpack(container, args[1])
+            unpacked += 1
+        print(f"unpacked {unpacked} packages, {total} files, into {args[1]}")
         return 0
     if command == "check" and len(args) >= 3:
         records = parse(args[0])

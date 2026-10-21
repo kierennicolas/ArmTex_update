@@ -13,10 +13,10 @@
 #                    by .texlive.support_files: the package database
 #                    (tlpkg/texlive.tlpdb, checked against its SHA-256 pin
 #                    and its release year against .texlive.release), then
-#                    each package named, as <dest-dir>/archive/<package>.tar.xz,
-#                    checked against the size and SHA-512 the database gives.
-#                    Packages are taken as named, without their dependencies;
-#                    scripts/lib/tlpdb.py resolve lists those.
+#                    each package named and every package it depends on, as
+#                    <dest-dir>/archive/<package>.tar.xz, checked against the
+#                    size and SHA-512 the database gives. Name a scheme
+#                    (scheme-basic) to get a whole installation's packages.
 #
 #                    The image (6.3 GB) is downloaded only when <dest-dir>
 #                    does not already hold everything asked for, into
@@ -57,11 +57,14 @@ fetch_support_files() {
   local tl="$root/scripts/lib/tlpdb.py" db="$dest/tlpkg/texlive.tlpdb" unpinned=0
 
   # Everything already here (from a cache, say)? Then the image is not needed.
-  if [ -n "$tlpdb_pin" ] && [ -f "$db" ] && [ "$(sha256sum "$db" | cut -d' ' -f1)" = "$tlpdb_pin" ] &&
-    { [ $# -eq 0 ] || python3 "$tl" check "$db" "$dest/archive" "$@" > /dev/null; }; then
-    echo "$input: $dest already holds the pinned database and every package asked for"
-    report_database "$db" "$release"
-    return 0
+  local wanted=()
+  if [ -n "$tlpdb_pin" ] && [ -f "$db" ] && [ "$(sha256sum "$db" | cut -d' ' -f1)" = "$tlpdb_pin" ]; then
+    resolve_packages "$@"
+    if [ ${#wanted[@]} -eq 0 ] || python3 "$tl" check "$db" "$dest/archive" "${wanted[@]}" > /dev/null; then
+      echo "$input: $dest already holds the pinned database and all ${#wanted[@]} packages asked for"
+      report_database "$db" "$release"
+      return 0
+    fi
   fi
 
   local isodir=${SUPPORT_ISO_DIR:-$dest/.iso}
@@ -99,9 +102,11 @@ fetch_support_files() {
   check_pin "database SHA-256" "$tlpdb_pin" "$have_tlpdb"
   report_database "$db" "$release"
 
+  resolve_packages "$@"
   local status=0
-  if [ $# -gt 0 ]; then
-    python3 "$tl" extract "$db" "$iso" "$dest/archive" "$@" || status=$?
+  if [ ${#wanted[@]} -gt 0 ]; then
+    echo "$input: taking ${#wanted[@]} packages out of the image"
+    python3 "$tl" extract "$db" "$iso" "$dest/archive" "${wanted[@]}" || status=$?
   fi
   if [ "${KEEP_ISO:-0}" != 1 ]; then
     rm -f "$iso"
@@ -111,6 +116,16 @@ fetch_support_files() {
     exit 1
   fi
   return "$status"
+}
+
+# resolve_packages <package>...: set the caller's "wanted" to the packages
+# named and everything they depend on, from the database in $db.
+resolve_packages() {
+  local list
+  wanted=()
+  [ $# -gt 0 ] || return 0
+  list=$(python3 "$root/scripts/lib/tlpdb.py" resolve "$db" "$@")
+  mapfile -t wanted <<< "$list"
 }
 
 # check_pin <what> <pinned value> <value found>: fail on a mismatch; count an
