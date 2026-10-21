@@ -109,6 +109,7 @@ Created as the milestones need them. Keep this table current.
 | `scripts/package-testkit.sh` | Package the Gate 1 test kit as a RISC OS zip | M1 |
 | `scripts/summarise-results.sh` | Markdown summary of `results.json` for the CI job summary | M1 |
 | `scripts/run-emulator.sh` | Run the test kit on build.riscos.online (Emulator-tested at most) | M1 |
+| `scripts/ci-annotate.sh` | Copy the end of a log into GitHub annotations, which are readable without the full job log | M1 |
 | `scripts/fetch-upstream.sh` | Fetch pinned inputs and verify checksums | Planned |
 | `scripts/build-host-tools.sh` | Native host build: tangle, ctangle, otangle, tie, kpsewhich, host pdfTeX | Planned |
 | `scripts/build-texlive.sh` | Cross-build the enabled TeX Live components | Planned |

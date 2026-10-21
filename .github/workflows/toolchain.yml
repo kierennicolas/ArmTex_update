@@ -138,7 +138,22 @@ jobs:
 
       - name: Build GCCSDK
         if: steps.recheck.outputs.needed == 'true'
-        run: scripts/build-toolchain.sh gccsdk toolchain-out
+        run: |
+          mkdir -p toolchain-out
+          scripts/build-toolchain.sh gccsdk toolchain-out 2>&1 | tee toolchain-out/build-toolchain.log
+
+      # Job logs live in storage that not every reader can reach; annotations
+      # put the cause of a failure on the run page and in the checks API.
+      - name: Report build failure
+        if: failure() && steps.recheck.outputs.needed == 'true'
+        run: |
+          log=gccsdk/gcc4/build-cross-output.txt
+          if [ -f "$log" ]; then
+            grep -n -E 'error|Error|\*\*\*|No such file|not found|[Ff]ailed' "$log" | tail -n 60 > toolchain-out/error-lines.txt || true
+            scripts/ci-annotate.sh error "GCCSDK build log, lines mentioning errors" toolchain-out/error-lines.txt 60
+            scripts/ci-annotate.sh error "GCCSDK build log, last lines" "$log" 100
+          fi
+          scripts/ci-annotate.sh error "build-toolchain.sh output, last lines" toolchain-out/build-toolchain.log 40
 
       - name: Upload build record
         if: always() && steps.recheck.outputs.needed == 'true'
@@ -149,6 +164,7 @@ jobs:
             toolchain-out/provenance.json
             toolchain-out/source-checksums.sha256
             toolchain-out/gccsdk-toolchain.tar.xz.sha256
+            toolchain-out/build-toolchain.log
             gccsdk/gcc4/build-cross-output.txt
           if-no-files-found: warn
 
@@ -211,3 +227,12 @@ jobs:
             cat toolchain-out/source-checksums.sha256
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "Image: $IMAGE"
+            echo "Digest: $digest"
+            echo "Base image: $BASE_REF"
+            cat toolchain-out/provenance.json
+            echo "Source archives:"
+            cat toolchain-out/source-checksums.sha256
+          } > toolchain-out/record.txt
+          scripts/ci-annotate.sh notice "Toolchain image built" toolchain-out/record.txt 200

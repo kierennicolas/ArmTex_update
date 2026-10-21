@@ -81,18 +81,20 @@ jobs:
           arm-unknown-riscos-g++ --version | head -1
 
       - name: Build test programs
-        run: scripts/build-toolchain-tests.sh out
+        run: |
+          mkdir -p out-logs
+          scripts/build-toolchain-tests.sh out 2>&1 | tee out-logs/build-tests.log
 
       - name: Check binaries
-        run: scripts/check-binaries.sh out
+        run: scripts/check-binaries.sh out 2>&1 | tee out-logs/check-binaries.log
 
       - name: Check that the binary checks reject bad files
-        run: tests/scripts/test-check-binaries.sh out
+        run: tests/scripts/test-check-binaries.sh out 2>&1 | tee out-logs/test-check-binaries.log
 
       - name: Package test kit
         id: kit
         run: |
-          scripts/package-testkit.sh out
+          scripts/package-testkit.sh out 2>&1 | tee out-logs/package-testkit.log
           name="TLTest-${BUILD_COMMIT:0:12}.zip"
           cp out/TLTest.zip "out/$name"
           echo "name=$name" >> "$GITHUB_OUTPUT"
@@ -104,7 +106,7 @@ jobs:
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         continue-on-error: true
         timeout-minutes: 10
-        run: scripts/run-emulator.sh out
+        run: scripts/run-emulator.sh out 2>&1 | tee out-logs/emulator.log
 
       - name: Job summary
         if: always()
@@ -125,6 +127,30 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      # Job logs live in storage that not every reader can reach; annotations
+      # put the results and any failure on the run page and in the checks API.
+      - name: Annotate results
+        if: always()
+        run: |
+          if [ -f out/results.json ]; then
+            scripts/summarise-results.sh out > out-logs/summary.md
+            scripts/ci-annotate.sh notice "Build results" out-logs/summary.md 200
+          fi
+          for f in build-tests check-binaries test-check-binaries package-testkit; do
+            if [ -f "out-logs/$f.log" ] && grep -qE '^(FAIL|error)|: error' "out-logs/$f.log"; then
+              scripts/ci-annotate.sh error "$f output, last lines" "out-logs/$f.log" 60
+            fi
+          done
+
+      - name: Annotate emulator output
+        if: always()
+        run: |
+          if [ -f out/emulator/output.txt ]; then
+            scripts/ci-annotate.sh notice "Emulator output (Pyromaniac; indicative only)" out/emulator/output.txt 200
+          elif [ -f out-logs/emulator.log ]; then
+            scripts/ci-annotate.sh notice "Emulator step output" out-logs/emulator.log 80
+          fi
+
       - name: Upload test kit
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -140,6 +166,7 @@ jobs:
           path: |
             out/results.json
             out/logs/
+            out-logs/
             out/kit/
             out/emulator/output.txt
             out/emulator/stage/.robuild.yaml
