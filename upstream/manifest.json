@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "toolchain": {
+    "gccsdk": {
+      "repository": "https://github.com/riscos-dot-info/gccsdk",
+      "revision": "33cb00db1e0a9bfceb84fdee96607c65cc06c4ee",
+      "revision_date": "2026-10-11",
+      "gcc_version": "4.7.4",
+      "gccsdk_release": "Rel6",
+      "target": "arm-unknown-riscos",
+      "install_prefix": "/opt/riscos-gccsdk/arm-unknown-riscos",
+      "source_checksums": "toolchain/gccsdk/source-checksums.sha256"
+    },
+    "image": {
+      "registry": "ghcr.io",
+      "name": "kierennicolas/armtex_update/gccsdk",
+      "base_image": "ubuntu:24.04",
+      "base_image_digest": null
+    }
+  },
+  "tools": {
+    "robuild_client": {
+      "description": "WebSockets client for the build.riscos.online service (RISC OS Pyromaniac), used for the Milestone 1 emulator evaluation",
+      "repository": "https://github.com/gerph/robuild-client",
+      "version": "v0.08",
+      "url": "https://github.com/gerph/robuild-client/releases/download/v0.08/riscos-build-online",
+      "sha256": "0850caa4715047b4b04b461388d77b1007a5d7eb3d80a9f0550651ccb70f0548"
+    }
+  },
+  "texlive": {
+    "release": 2026,
+    "source": null,
+    "support_files": null,
+    "note": "Pinned in Milestone 2."
+  }
+}

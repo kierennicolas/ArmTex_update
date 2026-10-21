@@ -1,0 +1,146 @@
+name: Build
+
+# Builds and checks the RISC OS outputs. For Milestone 1 these are the
+# toolchain test programs and the TLTest kit for Gate 1.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push queues behind a running build instead of cancelling it, so a
+# toolchain image build that is under way is never thrown away.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  host-tests:
+    name: Host-side tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Unit tests (packaging and check tools)
+        run: python3 -m unittest discover -v -s tests/scripts -p 'test_*.py'
+
+      - name: Shell script lint
+        run: shellcheck scripts/*.sh tests/scripts/*.sh
+
+      - name: Manifest is valid JSON with the required pins
+        run: |
+          jq -e '.toolchain.gccsdk.revision | test("^[0-9a-f]{40}$")' upstream/manifest.json
+          jq -e '.toolchain.image.name | test("^[a-z0-9._/-]+$")' upstream/manifest.json
+
+      - name: Test programs compile with the host compiler
+        run: |
+          mkdir -p host-build
+          for f in tests/toolchain/*.c; do gcc -std=gnu99 -O2 -Wall -Werror -c -o host-build/x.o "$f"; done
+          g++ -std=c++11 -O2 -Wall -Werror -c -o host-build/x.o tests/toolchain/cxx11.cc
+          g++ -std=c++17 -O2 -Wall -Werror -c -o host-build/x.o tests/toolchain/cxx17.cc
+
+  toolchain:
+    name: Toolchain
+    uses: ./.github/workflows/toolchain.yml
+    permissions:
+      contents: read
+      packages: write
+
+  build:
+    name: Cross-compile and package
+    needs: toolchain
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    container:
+      image: ${{ needs.toolchain.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      BUILD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Show toolchain
+        run: |
+          echo "Image: ${{ needs.toolchain.outputs.image }}"
+          arm-unknown-riscos-gcc --version | head -1
+          arm-unknown-riscos-g++ --version | head -1
+
+      - name: Build test programs
+        run: scripts/build-toolchain-tests.sh out
+
+      - name: Check binaries
+        run: scripts/check-binaries.sh out
+
+      - name: Check that the binary checks reject bad files
+        run: tests/scripts/test-check-binaries.sh out
+
+      - name: Package test kit
+        id: kit
+        run: |
+          scripts/package-testkit.sh out
+          name="TLTest-${BUILD_COMMIT:0:12}.zip"
+          cp out/TLTest.zip "out/$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      # Indicative only: the service runs RISC OS Pyromaniac, not RISC OS 5.30.
+      # Skipped for pull requests from forks, which should not send builds to a
+      # third-party service from this repository's CI.
+      - name: Emulator evaluation (build.riscos.online)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        timeout-minutes: 10
+        run: scripts/run-emulator.sh out
+
+      - name: Job summary
+        if: always()
+        run: |
+          if [ -f out/results.json ]; then
+            scripts/summarise-results.sh out >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f out/emulator/output.txt ]; then
+            {
+              echo
+              echo "## Emulator evaluation (build.riscos.online)"
+              echo
+              echo "Indicative only: RISC OS Pyromaniac, not RISC OS 5.30. Last 150 lines of output:"
+              echo
+              echo '```'
+              tail -n 150 out/emulator/output.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload test kit
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: out/${{ steps.kit.outputs.name }}
+          archive: false
+          if-no-files-found: error
+
+      - name: Upload build record
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-record
+          path: |
+            out/results.json
+            out/logs/
+            out/kit/
+            out/emulator/output.txt
+            out/emulator/stage/.robuild.yaml
+          if-no-files-found: warn

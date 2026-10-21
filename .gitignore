@@ -1,0 +1,12 @@
+# Build outputs
+/out/
+/host-build/
+/toolchain-out/
+/image-context/
+
+# Upstream checkouts made by scripts or CI
+/gccsdk/
+
+# Python
+__pycache__/
+*.pyc

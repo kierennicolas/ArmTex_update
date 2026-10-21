@@ -1,0 +1,213 @@
+name: Toolchain
+
+# Builds the GCCSDK cross toolchain into a container image in GitHub Container
+# Registry, unless an image for the current pins and recipe already exists.
+#
+# build.yml calls this before every build, so the expensive build (one to two
+# hours) only happens when upstream/manifest.json, the Dockerfile or
+# scripts/build-toolchain.sh change. It can also be run by hand.
+
+on:
+  workflow_call:
+    outputs:
+      image:
+        description: Toolchain image reference
+        value: ${{ jobs.resolve.outputs.image }}
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild and overwrite the image even if it already exists
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    name: Resolve toolchain image
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      image: ${{ steps.ref.outputs.image }}
+      tag: ${{ steps.ref.outputs.tag }}
+      exists: ${{ steps.check.outputs.exists }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Compute image reference
+        id: ref
+        run: scripts/toolchain-image.sh | tee -a "$GITHUB_OUTPUT"
+
+      - name: Check whether the image exists
+        id: check
+        env:
+          IMAGE: ${{ steps.ref.outputs.image }}
+          REGISTRY_TOKEN: ${{ github.token }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+          if docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Toolchain image $IMAGE exists; no build needed."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Toolchain image $IMAGE not found; it will be built."
+          fi
+
+  build:
+    name: Build GCCSDK toolchain image
+    needs: resolve
+    if: needs.resolve.outputs.exists != 'true' || inputs.force
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    permissions:
+      contents: read
+      packages: write
+    concurrency:
+      group: toolchain-${{ needs.resolve.outputs.tag }}
+      cancel-in-progress: false
+    env:
+      IMAGE: ${{ needs.resolve.outputs.image }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Another run may have built the image while this job waited for the
+      # concurrency group. Skip the build in that case.
+      - name: Check again whether the image exists
+        id: recheck
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+          REGISTRY_USER: ${{ github.actor }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+          if [ "$FORCE" != "true" ] && docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            echo "Toolchain image $IMAGE now exists; skipping the build."
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Read pins
+        if: steps.recheck.outputs.needed == 'true'
+        id: pins
+        run: |
+          {
+            echo "revision=$(jq -r '.toolchain.gccsdk.revision' upstream/manifest.json)"
+            echo "repository=$(jq -r '.toolchain.gccsdk.repository' upstream/manifest.json | sed 's#^https://github.com/##')"
+            echo "prefix=$(jq -r '.toolchain.gccsdk.install_prefix' upstream/manifest.json)"
+            echo "base=$(jq -r '.toolchain.image.base_image' upstream/manifest.json)"
+            echo "base_digest=$(jq -r '.toolchain.image.base_image_digest // empty' upstream/manifest.json)"
+          } | tee -a "$GITHUB_OUTPUT"
+
+      - name: Check out GCCSDK at the pinned revision
+        if: steps.recheck.outputs.needed == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ steps.pins.outputs.repository }}
+          ref: ${{ steps.pins.outputs.revision }}
+          path: gccsdk
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The same dependency list GCCSDK's own CI installs on ubuntu-24.04.
+      - name: Install GCCSDK build dependencies
+        if: steps.recheck.outputs.needed == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -y \
+            autoconf autogen automake bison build-essential flex gperf \
+            help2man jq libtool rename subversion texinfo wget
+
+      - name: Prepare install prefix
+        if: steps.recheck.outputs.needed == 'true'
+        env:
+          PREFIX: ${{ steps.pins.outputs.prefix }}
+        run: |
+          sudo mkdir -p "$PREFIX"
+          sudo chown -R "$(id -u):$(id -g)" "$(dirname "$PREFIX")"
+
+      - name: Build GCCSDK
+        if: steps.recheck.outputs.needed == 'true'
+        run: scripts/build-toolchain.sh gccsdk toolchain-out
+
+      - name: Upload build record
+        if: always() && steps.recheck.outputs.needed == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: toolchain-build-record
+          path: |
+            toolchain-out/provenance.json
+            toolchain-out/source-checksums.sha256
+            toolchain-out/gccsdk-toolchain.tar.xz.sha256
+            gccsdk/gcc4/build-cross-output.txt
+          if-no-files-found: warn
+
+      - name: Build image
+        if: steps.recheck.outputs.needed == 'true'
+        id: image
+        env:
+          BASE: ${{ steps.pins.outputs.base }}
+          BASE_DIGEST: ${{ steps.pins.outputs.base_digest }}
+          REVISION: ${{ steps.pins.outputs.revision }}
+        run: |
+          if [ -n "$BASE_DIGEST" ]; then
+            base_ref="${BASE%%:*}@$BASE_DIGEST"
+          else
+            docker pull "$BASE"
+            base_ref=$(docker image inspect --format '{{index .RepoDigests 0}}' "$BASE")
+          fi
+          echo "base_ref=$base_ref" >> "$GITHUB_OUTPUT"
+          echo "Base image: $base_ref"
+          mkdir -p image-context
+          cp toolchain-out/gccsdk-toolchain.tar.xz image-context/
+          docker build \
+            --build-arg BASE_IMAGE="$base_ref" \
+            --build-arg GCCSDK_REVISION="$REVISION" \
+            -f toolchain/gccsdk/Dockerfile \
+            -t "$IMAGE" \
+            image-context
+
+      - name: Smoke test image
+        if: steps.recheck.outputs.needed == 'true'
+        run: |
+          docker run --rm "$IMAGE" arm-unknown-riscos-gcc --version
+          docker run --rm "$IMAGE" sh -ec '
+            printf "#include <stdio.h>\nint main(void){puts(\"ok\");return 0;}\n" > /tmp/t.c
+            arm-unknown-riscos-gcc -static -O2 -o /tmp/t /tmp/t.c
+            if command -v elf2aif > /dev/null; then elf2aif /tmp/t /tmp/t,ff8; else arm-unknown-riscos-elf2aif /tmp/t /tmp/t,ff8; fi
+            ls -l /tmp/t /tmp/t,ff8'
+
+      - name: Push image
+        if: steps.recheck.outputs.needed == 'true'
+        env:
+          BASE_REF: ${{ steps.image.outputs.base_ref }}
+        run: |
+          docker push "$IMAGE"
+          digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE")
+          {
+            echo "## Toolchain image"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image | \`$IMAGE\` |"
+            echo "| Digest | \`$digest\` |"
+            echo "| Base image | \`$BASE_REF\` |"
+            echo "| GCC | \`$(jq -r .gcc_version_line toolchain-out/provenance.json)\` |"
+            echo "| Build time | $(jq -r .build_minutes toolchain-out/provenance.json) minutes |"
+            echo
+            echo "### Source archives downloaded by GCCSDK"
+            echo
+            echo '```'
+            cat toolchain-out/source-checksums.sha256
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
