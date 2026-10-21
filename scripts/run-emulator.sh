@@ -59,6 +59,8 @@ if [ -n "$sul" ]; then
   cp "$sul" "$work/stage/SharedULib,ffa"
 else
   echo "No SharedUnixLibrary module found in the toolchain; relying on the service"
+  echo "Files under ${GCCSDK_PREFIX:-/opt/riscos-gccsdk} with names like the module's:"
+  find "${GCCSDK_PREFIX:-/opt/riscos-gccsdk}" \( -iname '*sul*' -o -iname '*sharedul*' \) 2>/dev/null | head -20 || true
 fi
 
 {

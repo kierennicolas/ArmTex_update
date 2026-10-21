@@ -157,10 +157,12 @@ jobs:
       - name: Annotate emulator output
         if: always()
         run: |
+          if [ -f out-logs/emulator.log ]; then
+            grep -v '^      - ' out-logs/emulator.log > out-logs/emulator-short.log || true
+            scripts/ci-annotate.sh notice "Emulator step output" out-logs/emulator-short.log 40
+          fi
           if [ -f out/emulator/output.txt ]; then
             scripts/ci-annotate.sh notice "Emulator output (Pyromaniac; indicative only)" out/emulator/output.txt 200
-          elif [ -f out-logs/emulator.log ]; then
-            scripts/ci-annotate.sh notice "Emulator step output" out-logs/emulator.log 80
           fi
 
       - name: Upload test kit

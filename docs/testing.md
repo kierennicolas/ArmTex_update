@@ -27,6 +27,8 @@ The build job uploads the test kit to [build.riscos.online](https://build.riscos
 
 Pyromaniac reimplements RISC OS; it is not RISC OS 5.30 and does not model Titanium's processor. A result here is **Emulator-tested** at most and never replaces a gate.
 
+So far the service has no SharedUnixLibrary module, so UnixLib programs stop at start-up. The script uploads the toolchain's own module when it can find one; building that module from GCCSDK's sources is the next step.
+
 ## Gate 1: toolchain test kit on Titanium
 
 Gate 1 confirms that programs built by the project's toolchain run on Titanium, and measures what Milestone 1 needs to decide: which floating-point variant to use, and how unaligned memory access behaves.

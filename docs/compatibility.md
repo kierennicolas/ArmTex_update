@@ -11,10 +11,16 @@ As listed in [`CLAUDE.md`](../CLAUDE.md#out-of-scope-unless-the-maintainer-agree
 | Item | Status | Source |
 |---|---|---|
 | Compiler | GCC 4.7.4 (GCCSDK release 6) | GCCSDK sources |
-| C++11 | Partial in GCC 4.7; measured feature by feature by the probes in CI | Build job summary |
-| C++17 | Not expected with GCC 4.7; measured by the probes | Build job summary |
+| C++11 | Partial. Missing: `alignas`, `[[...]]` attributes, inheriting constructors, ref-qualifiers, `thread_local`, `std::to_string` | C++ probes, [CI run 39648204620](https://github.com/kierennicolas/ArmTex_update/actions/runs/39648204620) |
+| C++14, C++17 | Not supported: the compiler rejects the standard flags | Same run |
 | Hard-float ABI | Not available; soft-float and softfp with VFP are | `gcc4/STATUS-BRANCH` |
 | Wide characters and `thread_local` in C++ | Not expected: GCC is configured with `--disable-wchar_t` and `--disable-tls` | `gcc4/Makefile` |
+
+## Measured in emulation
+
+| Item | Result | Source |
+|---|---|---|
+| UnixLib programs on build.riscos.online | Do not start: no SharedUnixLibrary module | Same run, emulator annotation |
 
 ## Measured on hardware
 
