@@ -45,10 +45,10 @@
         "https://ctan.math.washington.edu/tex-archive/systems/texlive/Images/texlive2026-20260301.iso",
         "https://mirror.ctan.org/systems/texlive/Images/texlive2026-20260301.iso"
       ],
-      "size": null,
-      "sha256": "",
-      "sha512": "",
-      "tlpdb_sha256": "",
+      "size": 6784798720,
+      "sha256": "a143d17759f08344b916ae38829b71e1ea5a2f7029e87798242a588c918469d2",
+      "sha512": "4a9071bb567c3bdd6443378dedc8e485aea4a2f1203ec8ed7c17f6787093b9c37636a037032c0be63352e3d0bf98cf5616dab19fdcd7cb83f766b3e085b620ff",
+      "tlpdb_sha256": "7064690a7bae0e32118817f09b1dbbaebfaad7c64aeb308989f9850e7b02aaae",
       "signing_key": {
         "url": "https://tug.org/texlive/files/texlive.asc",
         "fingerprint": "C78B82D8C79512F79CC0D7C80D5E5D9106BAB6BC"

@@ -86,6 +86,10 @@ class FakeImage:
     def __init__(self, files):
         self.files = files
 
+    def list(self, path):
+        prefix = path.strip("/") + "/"
+        return {key[len(prefix):]: None for key in self.files if key.startswith(prefix)}
+
     def copy(self, path, out):
         if path not in self.files:
             raise iso9660.IsoError(f"{path}: not in the image")
@@ -102,7 +106,7 @@ class TlpdbTest(unittest.TestCase):
         self.records = tlpdb.parse(self.db)
         self.image = FakeImage({
             "archive/plain.tar.xz": PLAIN,
-            "archive/latex.tar.xz": LATEX,
+            "archive/latex.r70000.tar.xz": LATEX,
         })
         self.dest = self.dir / "dest"
 
@@ -179,11 +183,27 @@ class TlpdbTest(unittest.TestCase):
         self.assertEqual((self.dest / "plain.tar.xz").read_bytes(), PLAIN)
 
     def test_extract_reports_missing_and_unknown(self):
-        del self.image.files["archive/latex.tar.xz"]
+        del self.image.files["archive/latex.r70000.tar.xz"]
         failures = tlpdb.extract(self.records, self.image, str(self.dest),
                                  ["latex", "no-such-package", "nochecksum"])
         self.assertEqual(failures, 3)
         self.assertEqual(tlpdb.check(self.records, str(self.dest), ["latex"]), 1)
+
+    def test_extract_prefers_the_versioned_name(self):
+        self.image.files["archive/plain.r57963.tar.xz"] = PLAIN
+        self.image.files["archive/plain.tar.xz"] = b"not this one"
+        self.assertEqual(tlpdb.extract(self.records, self.image, str(self.dest), ["plain"]), 0)
+        self.assertEqual((self.dest / "plain.tar.xz").read_bytes(), PLAIN)
+
+    def test_extract_without_an_archive_directory(self):
+        class NoArchive(FakeImage):
+            def list(self, path):
+                if path == "archive":
+                    raise iso9660.IsoError("archive: not in the image")
+                return super().list(path)
+
+        image = NoArchive({"tlpkg/texlive.tlpdb": b""})
+        self.assertEqual(tlpdb.extract(self.records, image, str(self.dest), ["plain", "latex"]), 2)
 
     def test_extract_from_a_real_image(self):
         with open(os.path.join(ROOT, "tests", "fixtures", "rockridge.iso.xz"), "rb") as handle:

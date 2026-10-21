@@ -35,9 +35,10 @@ Usage:
         Check that DIR holds PKG.tar.xz for each PKG, with the size and
         SHA-512 the database gives. Exits 1 if any is missing or wrong.
     tlpdb.py extract TLPDB IMAGE DIR PKG...
-        Copy archive/PKG.tar.xz out of the ISO image IMAGE into DIR for each
-        PKG (no dependency expansion), and check its size and SHA-512. A file
-        already in DIR that passes the checks is kept.
+        Copy each PKG's container out of the ISO image IMAGE into DIR as
+        PKG.tar.xz (no dependency expansion), and check its size and SHA-512.
+        In the image it is archive/PKG.rREVISION.tar.xz or archive/PKG.tar.xz.
+        A file already in DIR that passes the checks is kept.
 
 Exits 1 if a package is unknown, a download fails, or a check fails.
 """
@@ -186,11 +187,28 @@ def check(records, dest, names):
     return failures
 
 
+def container_names(record, name):
+    """Names the container may have in archive/: TeX Live's images and
+    repositories store NAME.rREVISION.tar.xz, sometimes with NAME.tar.xz
+    beside it."""
+    revision = first(record, "revision")
+    names = [f"{name}.tar.xz"]
+    if revision:
+        names.insert(0, f"{name}.r{revision}.tar.xz")
+    return names
+
+
 def extract(records, image, dest, names):
-    """Copy archive/PKG.tar.xz out of image (an object with a copy(path,
-    file) method, such as iso9660.Image) into dest, checking each one.
-    Return the number of failures."""
+    """Copy each package's container out of image (an object with the list
+    and copy methods of iso9660.Image) into dest as NAME.tar.xz, checking
+    each one. Return the number of failures."""
     os.makedirs(dest, exist_ok=True)
+    try:
+        archive = set(image.list("archive"))
+    except (OSError, iso9660.IsoError) as error:
+        print(f"FAIL: the image has no archive directory ({error}); "
+              f"its top level holds: {' '.join(sorted(image.list('/')))}")
+        return len(names)
     failures = 0
     for name in names:
         want, reason = expected(records, name)
@@ -202,10 +220,18 @@ def extract(records, image, dest, names):
         if os.path.exists(path) and check_container(path, *want) is None:
             print(f"ok {name}: already present, {want[0]} bytes")
             continue
+        candidates = container_names(records[name], name)
+        member = next((candidate for candidate in candidates if candidate in archive), None)
+        if member is None:
+            similar = sorted(entry for entry in archive if entry.startswith(f"{name}."))[:5]
+            print(f"FAIL {name}: none of {', '.join(candidates)} is in the image's archive "
+                  f"directory; names starting {name}.: {', '.join(similar) or 'none'}")
+            failures += 1
+            continue
         partial = path + ".part"
         try:
             with open(partial, "wb") as out:
-                image.copy(f"archive/{name}.tar.xz", out)
+                image.copy(f"archive/{member}", out)
         except (OSError, iso9660.IsoError) as error:
             if os.path.exists(partial):
                 os.remove(partial)
@@ -215,11 +241,11 @@ def extract(records, image, dest, names):
         reason = check_container(partial, *want)
         if reason is not None:
             os.remove(partial)
-            print(f"FAIL {name}: {reason}")
+            print(f"FAIL {name}: archive/{member}: {reason}")
             failures += 1
             continue
         os.replace(partial, path)
-        print(f"ok {name}: {want[0]} bytes, SHA-512 matches")
+        print(f"ok {name}: archive/{member}, {want[0]} bytes, SHA-512 matches")
     return failures
 
 

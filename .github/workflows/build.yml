@@ -46,6 +46,9 @@ jobs:
           jq -e '.toolchain.gccsdk.revision | test("^[0-9a-f]{40}$")' upstream/manifest.json
           jq -e '.toolchain.image.name | test("^[a-z0-9._/-]+$")' upstream/manifest.json
           jq -e '.texlive.source.revision | test("^[0-9a-f]{40}$")' upstream/manifest.json
+          jq -e '.texlive.support_files.sha256 | test("^[0-9a-f]{64}$")' upstream/manifest.json
+          jq -e '.texlive.support_files.sha512 | test("^[0-9a-f]{128}$")' upstream/manifest.json
+          jq -e '.texlive.support_files.tlpdb_sha256 | test("^[0-9a-f]{64}$")' upstream/manifest.json
           jq -e '.texlive.support_files.signing_key.fingerprint | test("^[0-9A-F]{40}$")' upstream/manifest.json
 
       - name: Test programs compile with the host compiler
