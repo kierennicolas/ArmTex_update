@@ -79,19 +79,15 @@ YAML
     echo '      - RMEnsure SharedUnixLibrary 1.13 RMLoad SharedULib'
   fi
   echo '      - Help SharedUnixLibrary'
-  for variant in soft vfp a15; do
-    for program in hello float cxx11; do
+  # The service stops at the first failure, and it has no VFPSupport module,
+  # so run everything soft-float first.
+  for variant in soft vfp a15 a15noua; do
+    for program in hello float cxx11 unaligned; do
       if [ -f "$kit/$variant/$program,ff8" ]; then
         echo "      - Echo ===== $variant $program ====="
         echo "      - Run $variant.$program"
       fi
     done
-  done
-  for variant in soft vfp a15 a15noua; do
-    if [ -f "$kit/$variant/unaligned,ff8" ]; then
-      echo "      - Echo ===== $variant unaligned ====="
-      echo "      - Run $variant.unaligned"
-    fi
   done
   echo '      - Echo ===== all programs ran ====='
   echo '    artifacts:'
