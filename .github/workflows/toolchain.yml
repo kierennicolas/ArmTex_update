@@ -23,6 +23,11 @@ on:
 permissions:
   contents: read
 
+# bash with -eo pipefail, so a failure piped through tee fails the step.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   resolve:
     name: Resolve toolchain image

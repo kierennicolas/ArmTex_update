@@ -12,6 +12,13 @@ on:
 permissions:
   contents: read
 
+# Every run step uses bash with -eo pipefail, so a failure piped through tee
+# fails the step. Without this, steps on the runner use "bash -e", which
+# ignores a failure before the pipe, and steps in a container use sh.
+defaults:
+  run:
+    shell: bash
+
 # A newer push queues behind a running build instead of cancelling it, so a
 # toolchain image build that is under way is never thrown away.
 concurrency:
@@ -68,11 +75,6 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     env:
       BUILD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-    # Inside a container the default shell is sh, which lacks pipefail: a
-    # failure piped through tee would go unnoticed. bash runs with -eo pipefail.
-    defaults:
-      run:
-        shell: bash
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -233,9 +235,6 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    defaults:
-      run:
-        shell: bash
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
