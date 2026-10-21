@@ -110,7 +110,8 @@ Created as the milestones need them. Keep this table current.
 | `scripts/summarise-results.sh` | Markdown summary of `results.json` for the CI job summary | M1 |
 | `scripts/run-emulator.sh` | Run a kit's commands on build.riscos.online (Emulator-tested at most) | M1 |
 | `scripts/ci-annotate.sh` | Copy the end of a log into GitHub annotations, which are readable without the full job log | M1 |
-| `scripts/fetch-upstream.sh` | Fetch pinned inputs and verify them (TeX Live source by commit) | M2 |
+| `scripts/fetch-upstream.sh` | Fetch pinned inputs and verify them: the TeX Live source by commit, the support-file database by SHA-256 and its packages by SHA-512 (uses `scripts/lib/tlpdb.py`) | M2 |
+| `scripts/verify-tlpdb-signature.sh` | Check that the pinned package database carries TeX Live's signature (CI runner only: needs gpg) | M2 |
 | `scripts/build-host-tools.sh` | Native host build: tangle, ctangle, otangle, tie, kpsewhich, host pdfTeX | M2 |
 | `scripts/build-texlive.sh` | Cross-configure TeX Live and build the enabled components; write `results.json` | M2 |
 | `scripts/summarise-texlive.sh` | Markdown summary of the TeX Live cross build's `results.json` | M2 |

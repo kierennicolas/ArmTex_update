@@ -44,6 +44,22 @@ The source is the `texlive-2026.1` tag of the [TeX-Live/texlive-source](https://
 
 Library versions in this source, from `libs/README`: zlib 1.3.2, libpng 1.6.55, xpdf 4.06, FreeType 2.14.1, HarfBuzz 12.3.2, graphite2 1.3.14, ICU 78.2, Lua 5.3.6, pplib 2.05.0.
 
+## Support files
+
+Macros, fonts and configuration come from a dated snapshot of TeX Live 2026's network repository (tlnet), from the archive at texlive.info that keeps a copy of tlnet for every day; nixpkgs uses the same archive to pin TeX Live. The snapshot is 1 October 2026, a TeX Live 2026 database (release 2026, not frozen: the year is still open for updates).
+
+Why a dated tlnet snapshot rather than the TL2026 ISO: the build needs a few hundred megabytes of packages, not a 6 GB image, and a snapshot can be fetched package by package. Why not live tlnet: it changes daily.
+
+How the pin works:
+
+- `upstream/manifest.json` pins the SHA-256 of the snapshot's package database, `tlpkg/texlive.tlpdb.xz`.
+- The database lists every package with the size and SHA-512 of its container, `archive/<package>.tar.xz`. `scripts/lib/tlpdb.py fetch` checks both for every container it fetches, so the one pin covers every support file.
+- `scripts/fetch-upstream.sh support-files <dir> [package...]` fetches the database, checks the pin and that the database is for the manifest's release year, then fetches the packages named.
+- `scripts/verify-tlpdb-signature.sh` checks, on the CI runner, that the database's SHA-512 is signed with TeX Live's own key (fingerprint pinned in the manifest), so the pinned database is TeX Live's and not just what the archive served.
+- `scripts/lib/tlpdb.py resolve` lists a package and everything it depends on, leaving out the per-platform binaries (`.ARCH`), which this project builds itself.
+
+The CI job `support-files` runs all of this on every build. Milestone 3 builds the texmf tree from these packages.
+
 ## Cross-building TeX Live
 
 Two stages, both in the `texlive` job of `build.yml`, inside the toolchain image:

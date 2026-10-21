@@ -176,7 +176,11 @@ def main(argv):
         return 2
     command, args = argv[1], argv[2:]
     if command == "download" and len(args) == 2:
-        download(args[0], args[1])
+        try:
+            download(args[0], args[1])
+        except OSError as error:
+            print(f"error: download from {args[0]} failed: {error}", file=sys.stderr)
+            return 1
         return 0
     if command == "info" and len(args) == 1:
         settings = config(parse(args[0]))

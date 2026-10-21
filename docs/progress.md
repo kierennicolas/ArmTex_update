@@ -29,6 +29,7 @@ Reference CI runs: [39670666067](https://github.com/kierennicolas/ArmTex_update/
 | Component | Status | Evidence and notes |
 |---|---|---|
 | TeX Live source pin (`texlive-2026.1`, commit `6a300188`) | Implemented | Fetched and checked in every CI run |
+| Support-file pin (tlnet snapshot of 1 October 2026) | Implemented | Database pinned by SHA-256 and checked against TeX Live's signature in CI; packages checked by SHA-512 ([#15](https://github.com/kierennicolas/ArmTex_update/pull/15)) |
 | Host tools: tangle, ctangle, tie, otangle, kpsewhich, pdftex | Host-tested | Native build in CI, cached between runs. The cross build uses tangle, ctangle, tie and otangle; the kit check uses kpsewhich |
 | Cross-configure of the whole tree for `arm-unknown-riscos` | Cross-compiled | configure succeeds; no `config.site` answers needed so far |
 | zlib, libpng, xpdf, kpathsea | Cross-compiled | xpdf 4.06 builds with GCC 4.7 in C++11 mode |

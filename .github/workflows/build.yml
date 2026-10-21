@@ -45,6 +45,9 @@ jobs:
         run: |
           jq -e '.toolchain.gccsdk.revision | test("^[0-9a-f]{40}$")' upstream/manifest.json
           jq -e '.toolchain.image.name | test("^[a-z0-9._/-]+$")' upstream/manifest.json
+          jq -e '.texlive.source.revision | test("^[0-9a-f]{40}$")' upstream/manifest.json
+          jq -e '.texlive.support_files.tlpdb.sha256 | test("^[0-9a-f]{64}$")' upstream/manifest.json
+          jq -e '.texlive.support_files.signing_key.fingerprint | test("^[0-9A-F]{40}$")' upstream/manifest.json
 
       - name: Test programs compile with the host compiler
         run: |
@@ -207,6 +210,10 @@ jobs:
           mkdir -p sf-logs
           scripts/fetch-upstream.sh support-files sf plain latex cm amsfonts 2>&1 | tee sf-logs/fetch.log
 
+      - name: Check TeX Live's signature on the database
+        if: steps.fetch.outcome == 'success'
+        run: scripts/verify-tlpdb-signature.sh sf 2>&1 | tee -a sf-logs/fetch.log
+
       - name: Size of scheme-basic
         if: steps.fetch.outcome == 'success'
         run: |
@@ -219,7 +226,7 @@ jobs:
         if: always()
         run: |
           level=notice
-          if [ "${{ steps.fetch.outcome }}" != success ]; then level=error; fi
+          if [ "${{ job.status }}" != success ]; then level=error; fi
           scripts/ci-annotate.sh "$level" "Support-file snapshot" sf-logs/fetch.log 60
 
   texlive:

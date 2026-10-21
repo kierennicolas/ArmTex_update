@@ -43,9 +43,14 @@
       "base_url": "https://texlive.info/tlnet-archive/2026/10/01/tlnet",
       "tlpdb": {
         "path": "tlpkg/texlive.tlpdb.xz",
-        "sha256": ""
+        "sha256": "7ca1b7ad9dc5e74dfc0764298a7ee764a1e28ae3c9b32725170309191d8376cc"
       },
-      "description": "Daily copy of TeX Live 2026's tlnet repository, kept by texlive.info. Package containers are checked against the size and SHA-512 the pinned database gives."
+      "description": "Daily copy of TeX Live 2026's tlnet repository, kept by texlive.info. Package containers are checked against the size and SHA-512 the pinned database gives.",
+      "signing_key": {
+        "url": "https://tug.org/texlive/files/texlive.asc",
+        "fingerprint": "C78B82D8C79512F79CC0D7C80D5E5D9106BAB6BC",
+        "description": "TeX Live's signing key; the tlpdb's signed SHA-512 is checked against it by scripts/verify-tlpdb-signature.sh"
+      }
     }
   }
 }
