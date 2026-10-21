@@ -24,7 +24,7 @@ Reference CI runs: [39648204620](https://github.com/kierennicolas/ArmTex_update/
 
 ## Milestone 2 components
 
-Reference CI runs: [39670666067](https://github.com/kierennicolas/ArmTex_update/actions/runs/39670666067), the first with every job green, and [39672805395](https://github.com/kierennicolas/ArmTex_update/actions/runs/39672805395), the first in which pdftex cross-compiles.
+Reference CI runs: [39670666067](https://github.com/kierennicolas/ArmTex_update/actions/runs/39670666067), the first with every job green; [39672805395](https://github.com/kierennicolas/ArmTex_update/actions/runs/39672805395), the first in which pdftex cross-compiles; and [39674828080](https://github.com/kierennicolas/ArmTex_update/actions/runs/39674828080), the first with the Gate 2 tree check and the Gate 2 artifact.
 
 | Component | Status | Evidence and notes |
 |---|---|---|
@@ -34,9 +34,9 @@ Reference CI runs: [39670666067](https://github.com/kierennicolas/ArmTex_update/
 | zlib, libpng, xpdf, kpathsea | Cross-compiled | xpdf 4.06 builds with GCC 4.7 in C++11 mode |
 | kpsewhich | Cross-compiled; Emulator-tested | Statically linked, passes the binary checks. Under the emulator it finds `texmf.cnf`, `article.cls`, `plain.tex`, `cmr10.tfm` and `cmr10.pfb` through `ls-R`, with `SELFAUTOPARENT` set to the kit's directory |
 | Probes: FreeType, pplib, zziplib, Lua 5.3, GMP, MPFR | Cross-compiled | Libraries only |
-| Probes: graphite2, HarfBuzz | Configure fails | The cause is not yet extracted; the next run's annotation shows configure's error line |
+| Probes: graphite2, HarfBuzz | Configure fails | Both stop at configure's C++11 test: GCC 4.7 rejects one of its constructs (a `static constexpr auto` member of a variadic class template, "has no initializer"). Whether the libraries themselves compile is untested; see Milestone 6 ([#8](https://github.com/kierennicolas/ArmTex_update/issues/8)) |
 | Probe: pdftex | Cross-compiled | Links statically, converts to AIF and passes the binary checks. Not yet run anywhere: it needs a texmf tree and format files (Milestone 3) |
-| Gate 2 kit (`package-kpse-kit.sh`) | Implemented | Artifact `TLKpse-<commit>.zip`. From the next CI run, `test-kpse-kit.sh` checks the tree and `ls-R` with the native kpsewhich, in place and moved; Host-tested once that run passes. Local: the same check passed on a development machine |
+| Gate 2 kit (`package-kpse-kit.sh`) | Host-tested | [39674828080](https://github.com/kierennicolas/ArmTex_update/actions/runs/39674828080): artifact `TLKpse-327a1e4ce122.zip`; `test-kpse-kit.sh` finds every file through the tree's `ls-R` with the native kpsewhich, in place and moved; the emulator run gives the same answers as before |
 
 ## Known failures
 
@@ -51,7 +51,7 @@ Reference CI runs: [39670666067](https://github.com/kierennicolas/ArmTex_update/
 
 1. Gate 1 ([#3](https://github.com/kierennicolas/ArmTex_update/issues/3)) and Gate 2: waiting for the maintainer's reports on Titanium.
 2. Milestone 3 host-side preparation: choose and pin the support-file snapshot, generate formats with the host pdfTeX, and package a pdfTeX kit for the emulator.
-3. Find out why graphite2 and HarfBuzz fail to configure (Milestone 6).
+3. Milestone 6 ([#8](https://github.com/kierennicolas/ArmTex_update/issues/8)): supply configure's C++11 answer for graphite2 and HarfBuzz in `config.site`, to find out whether the libraries themselves compile with GCC 4.7.
 4. Look for a C++17-capable RISC OS compiler (the GCC 8 and 10 work mentioned in community sources) before Milestone 7 ([#9](https://github.com/kierennicolas/ArmTex_update/issues/9)).
 
 Milestone issues: [#2](https://github.com/kierennicolas/ArmTex_update/issues/2) (M1) and [#4](https://github.com/kierennicolas/ArmTex_update/issues/4)–[#12](https://github.com/kierennicolas/ArmTex_update/issues/12) (M2–M10).

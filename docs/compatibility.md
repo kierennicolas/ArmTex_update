@@ -14,6 +14,7 @@ As listed in [`CLAUDE.md`](../CLAUDE.md#out-of-scope-unless-the-maintainer-agree
 | C++11 | Partial. Missing: `alignas`, `[[...]]` attributes, inheriting constructors, ref-qualifiers, `thread_local`, `std::to_string` | C++ probes, [CI run 39648204620](https://github.com/kierennicolas/ArmTex_update/actions/runs/39648204620) |
 | C++14, C++17 | Not supported: the compiler rejects the standard flags | Same run |
 | Hard-float ABI | Not available; soft-float and softfp with VFP are | `gcc4/STATUS-BRANCH` |
+| Autoconf's C++11 test (`AX_CXX_COMPILE_STDCXX(11)`, used by graphite2 and HarfBuzz) | Fails with every switch: GCC 4.7 reports "declaration of 'constexpr const auto …::sum<…>::value' has no initializer" for the test's variadic-template check. Libraries that use this test do not configure | [CI run 39674828080](https://github.com/kierennicolas/ArmTex_update/actions/runs/39674828080), failed-probe annotation |
 | Wide characters and `thread_local` in C++ | Not expected: GCC is configured with `--disable-wchar_t` and `--disable-tls` | `gcc4/Makefile` |
 
 ## Measured in emulation
