@@ -27,8 +27,10 @@ GCCSDK's own CI (`.github/workflows/build.yaml` in that repository) builds the c
 - **Tag:** `<first 12 of the GCCSDK commit>-<first 12 of the recipe hash>`, computed by `scripts/toolchain-image.sh`. The recipe hash covers the manifest's `toolchain` section, `toolchain/gccsdk/Dockerfile` and `scripts/build-toolchain.sh`, so changing any of them produces a new tag.
 - **Never rebuilt in place:** if the tag already exists, the workflow skips the build. A rebuild needs a manual run with `force`.
 - **Provenance:** each build uploads a record (`toolchain-build-record` artifact) with the compiler version line, build host, build time, the SHA-256 of the toolchain tarball, and the SHA-256 of every source archive GCCSDK downloaded. The job summary shows the image digest and the base image digest.
-- **Source archive pins:** GCCSDK downloads GCC, binutils, GMP, MPFR, MPC and the autotools from mirrors without checking them. After the first build, its list of checksums is committed as `toolchain/gccsdk/source-checksums.sha256`; later builds fail if any download differs. Until that file exists, a build prints a warning and the list to commit.
-- **Base image:** `ubuntu:24.04`, resolved to a digest at build time and recorded. Setting `toolchain.image.base_image_digest` in the manifest pins it.
+- **Source archive pins:** GCCSDK downloads binutils, GMP, MPFR, MPC, PPL, CLooG and the autotools from mirrors without checking them. The checksums from the first successful build are committed as `toolchain/gccsdk/source-checksums.sha256`; later builds fail if any download differs.
+- **GCC source pin:** GCCSDK does not download a GCC release archive; it checks out the `gcc-4_7-branch` from GCC's Subversion archive (`GCC_USE_SCM=yes` in `gcc4/Makefile`). That branch is closed, but the build records the revision it got, and fails if it differs from `toolchain/gccsdk/gcc-svn-revision` once that file is committed.
+- **Base image:** `ubuntu:24.04`, pinned by the digest in `toolchain.image.base_image_digest`. The build runner itself (GitHub's `ubuntu-24.04` image) cannot be pinned; its compiler version is in the provenance record.
+- **First image:** `ghcr.io/kierennicolas/armtex_update/gccsdk:33cb00db1e0a-c69b7515511b`, digest `sha256:b6a7f94e24d972040e79cada02e37a4cbfdecb39fe3aefe0abc626e006be5017`, built in 21 minutes with host GCC 13.3.0 ([run 39643442078](https://github.com/kierennicolas/ArmTex_update/actions/runs/39643442078)). An earlier attempt with the same recipe failed after seven minutes; its log could not be read, and the identical rerun succeeded, so the cause is recorded as unknown, probably a download.
 
 #### Deviation from the Milestone 1 issue
 
@@ -81,8 +83,15 @@ The test kit is uploaded with `archive: false`, so the artifact is the RISC OS z
 
 | Decision | Status | Evidence |
 |---|---|---|
-| Compiler | Open (Milestone 1). GCC 4.7.4 (GCCSDK release 6) is the only compiler in the GCCSDK repository. The GCC 8 and 10 work mentioned in community sources was not found there; finding it is the next step if C++17 is needed. | This document |
-| C++11 and C++17 support | Open (Milestone 1): measured by the probes in CI | CI job summary, once run |
-| Floating-point variant | Open (Milestone 1): decided from Gate 1 results | Gate 1 report |
-| Unaligned-access flags | Open (Milestone 1): decided from Gate 1 results | Gate 1 report |
-| Emulator testing | Open (Milestone 1) | — |
+| Compiler | Provisional: GCC 4.7.4 (GCCSDK release 6), the only compiler in the GCCSDK repository. It builds all the Milestone 1 test programs. Its C++ support is the limiting factor (below). The GCC 8 and 10 work mentioned in community sources was not found in that repository; finding it is the next step if C++17 is needed. | [CI run 39647972451](https://github.com/kierennicolas/ArmTex_update/actions/runs/39647972451) |
+| C++11 | **Partial.** Supported: the core features in `cxx11.cc` (lambdas, `auto`, smart pointers, move semantics, exceptions, variadic templates, `constexpr`, `enum class`, `override`), `std::atomic`, `std::mutex`, user-defined literals. Not supported: `alignas`, the `[[...]]` attribute syntax, inheriting constructors, ref-qualified member functions, `thread_local`, `std::to_string`. | C++ probes, same run |
+| C++14 and C++17 | **Not supported**: the compiler rejects `-std=c++14`/`c++1y` and `-std=c++17`/`c++1z`. The bundled ICU (78.x) needs C++17, so XeTeX and bibtexu cannot be built with this compiler. Milestone 7 is blocked unless a newer compiler is found. | C++ probes, same run |
+| Floating-point variant | Open: decided from Gate 1 results. All variants build. | Gate 1 report |
+| Unaligned-access flags | Open: decided from Gate 1 results | Gate 1 report |
+| Emulator testing | Open. The first run on build.riscos.online stopped at the first program because Pyromaniac has no SharedUnixLibrary; the next run supplies the toolchain's own module. | Same run, emulator annotation |
+
+### What the C++ results mean for later milestones
+
+- **pdfTeX (Milestone 3)** links xpdf 4.06, which is C++. Whether that code avoids the missing features is unknown until it is compiled; Milestone 2 should try it early.
+- **LuaHBTeX (Milestone 6)** needs HarfBuzz 14.x. HarfBuzz requires C++11, and modern releases may use features GCC 4.7 lacks. Also to be tried early in Milestone 2.
+- **XeTeX (Milestone 7)** is blocked with this compiler, as the precondition in the roadmap anticipated.
