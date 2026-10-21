@@ -67,7 +67,39 @@ for ref in "$docs"/*.pdf; do
     echo "IDENTICAL $doc.pdf: $(wc -c < "$got") bytes, SHA-256 $a, the same as the host's"
     continue
   fi
+  # pdfTeX's /ID hashes the working directory and output path, which cannot
+  # match between machines; compare with it blanked, and show any other
+  # difference in context.
+  verdict=$(python3 - "$got" "$ref" <<'EOF'
+import re, sys
+def blank(data):
+    return re.sub(rb"/ID\s*\[\s*<[0-9A-Fa-f]*>\s*<[0-9A-Fa-f]*>\s*\]",
+                  lambda m: re.sub(rb"[0-9A-Fa-f]", b"0", m.group(0)), data)
+a, b = (open(path, "rb").read() for path in sys.argv[1:3])
+na, nb = blank(a), blank(b)
+if na == nb:
+    print("SAME-BUT-ID")
+    sys.exit()
+print("DIFFERENT")
+diffs = [i for i in range(min(len(na), len(nb))) if na[i] != nb[i]]
+print(f"  {len(diffs)} differing bytes in the first {min(len(na), len(nb))}; lengths {len(a)} and {len(b)}")
+shown = -1000
+for i in diffs:
+    if i - shown < 64:
+        continue
+    shown = i
+    show = lambda d: d[max(0, i - 40):i + 40].decode("latin-1").encode("unicode_escape").decode()
+    print(f"  at byte {i}:\n    RISC OS: {show(a)}\n    host:    {show(b)}")
+    if shown >= 0 and len([j for j in diffs if j <= i]) > 200:
+        break
+EOF
+)
+  if [ "$(head -n 1 <<< "$verdict")" = SAME-BUT-ID ]; then
+    echo "IDENTICAL $doc.pdf apart from /ID: $(wc -c < "$got") bytes; /ID hashes the working directory, so it always differs between machines"
+    continue
+  fi
   echo "DIFFERENT $doc.pdf: $(wc -c < "$got") bytes, SHA-256 $a; host: $(wc -c < "$ref") bytes, SHA-256 $b"
+  tail -n +2 <<< "$verdict" | head -n 40
   if command -v qpdf > /dev/null && command -v pdfinfo > /dev/null; then
     "$root/scripts/validate-pdf.sh" "$got" "$ref" || failures=$((failures + 1))
   else
