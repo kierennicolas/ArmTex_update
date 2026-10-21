@@ -53,6 +53,21 @@ Two stages, both in the `texlive` job of `build.yml`, inside the toolchain image
 
 Each component is either **required** for Milestone 2 (zlib, libpng, xpdf, kpathsea, kpsewhich) or a **probe** for later milestones (pdfTeX, FreeType, pplib, zziplib, Lua, graphite2, HarfBuzz, GMP, MPFR). `results.json` records each one's outcome and first error.
 
+### What the first cross builds taught
+
+Each of these cost a CI run to find; the fix is in the scripts.
+
+- **Static linking:** GCCSDK links against shared libraries by default, and libtool does not pass `-static` through from `CC` or `LDFLAGS`. `build-texlive.sh` puts wrappers for `arm-unknown-riscos-gcc` and `-g++` first on `PATH` that always add `-static`.
+- **C++ standard:** GCC 4.7 compiles C++98 unless told otherwise, and TeX Live's configure does not add a flag, so xpdf failed inside `<atomic>`. `CXX` includes `-std=gnu++11`; with it, xpdf 4.06 builds.
+- **Timestamps:** a git checkout writes files in no particular order, so generated files (web2c's parser, the Info manuals) can look older than their sources, and make tries to regenerate them with bison or makeinfo. `fetch-upstream.sh` gives every file the commit's timestamp.
+- **Cross tools:** passing `AR`, `RANLIB` and `STRIP` to configure also reaches web2c's helper programs, which are built for the build machine, and their library ended up without a symbol index. configure finds the cross tools from `--host` without them.
+- **Container shell:** steps in a container job run under `sh` unless told otherwise, without `pipefail`; the build job sets `bash`.
+
+### Findings from the emulator runs of kpsewhich
+
+- `SELFAUTOLOC`, `SELFAUTOPARENT` and `TEXMFDIST` come out right, as Unix-style paths, so kpathsea's self-location works under UnixLib and TeX Live's own `texmf.cnf` needs no changes.
+- Looking for its `ls-R` database, kpathsea finds both `ls-r` and `ls-R`, because RISC OS filing systems ignore case. It reads the same file twice; harmless, but worth knowing if lookups ever look duplicated.
+
 ## Executables
 
 The default (to be confirmed at Gate 1): programs are linked statically with UnixLib and converted from ELF to AIF (filetype &FF8) with GCCSDK's `elf2aif`.

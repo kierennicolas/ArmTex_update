@@ -176,7 +176,7 @@ for entry in "${libraries[@]}"; do
   if [ ! -f "$dir/Makefile" ]; then
     if [ -f "$dir/config.log" ]; then
       cp "$dir/config.log" "$out/logs/$log"
-      record "$name" "$kind" configure-failed "$log" "$(grep -m1 -E 'configure: error' "$dir/config.log" | cut -c1-200)"
+      record "$name" "$kind" configure-failed "$log" "$(grep -m1 -E 'configure:[0-9]*: error' "$dir/config.log" | cut -c1-200)"
     else
       : > "$out/logs/$log"
       record "$name" "$kind" not-configured "$log"

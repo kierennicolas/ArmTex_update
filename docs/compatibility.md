@@ -25,6 +25,9 @@ As listed in [`CLAUDE.md`](../CLAUDE.md#out-of-scope-unless-the-maintainer-agree
 | Layout of a `double` in memory, soft-float build | FPA word order (`00 00 f0 3f 00 00 00 00` for 1.0), not little-endian IEEE | Same run, `float` INFO line |
 | UnixLib filename translation | `article.cls` becomes `article/cls` with or without suffix swapping; `foo.c` becomes `c.foo` with it and `foo/c` without; dots in directory names become `/`; `/tmp` maps to `<Wimp$ScrapDir>` | Same run, `hello` INFO lines |
 
+| kpsewhich 6.4.2 (soft-float) in the Gate 2 kit | Finds `texmf.cnf`, `article.cls`, `plain.tex`, `cmr10.tfm` and `cmr10.pfb` through `ls-R`. `SELFAUTOLOC`, `SELFAUTOPARENT` and `TEXMFDIST` are Unix-style paths below the kit (`/work/bin/riscos`, `/work`, `/work/texmf-dist`) | [39670666067](https://github.com/kierennicolas/ArmTex_update/actions/runs/39670666067), emulator annotations |
+| Case of `ls-R` | kpathsea looks for `ls-r` and `ls-R`; on a case-insensitive filing system both name the same file, which it then reads twice | Same run, search details |
+
 ## Measured on hardware
 
 Nothing yet. Gate 1 will add the floating-point, unaligned-access and filename-translation results here.

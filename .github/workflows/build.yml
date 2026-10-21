@@ -276,6 +276,14 @@ jobs:
           cp tl-out/TLKpse.zip "tl-out/$name"
           echo "name=$name" >> "$GITHUB_OUTPUT"
 
+      # Checks the kit's tree and ls-R with the native kpsewhich from the same
+      # source, in place and after moving it. No RISC OS binary runs here.
+      - name: Check the Gate 2 kit's tree
+        id: kitcheck
+        if: always() && steps.kpsekit.outcome == 'success'
+        run: |
+          scripts/test-kpse-kit.sh tl-out/kit/TLKpse host-tools/bin/kpsewhich 2>&1 | tee tl-logs/test-kpse-kit.log
+
       # Indicative only: RISC OS Pyromaniac, not RISC OS 5.30.
       - name: Emulator run of the Gate 2 kit
         if: always() && steps.kpsekit.outcome == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
@@ -318,13 +326,17 @@ jobs:
             jq -r '.components[] | select(.kind == "probe" and .status != "built") | "\(.name) \(.status) \(.log)"' tl-out/results.json |
               while read -r name status log; do
                 echo "===== $name: $status ====="
-                grep -m 4 'configure: error' "tl-out/$log" || true
+                grep -m 4 -E 'configure:[0-9]*: error' "tl-out/$log" || true
+                grep -m 6 -B 3 -E 'configure:[0-9]*: result: no$' "tl-out/$log" | tail -n 12 || true
                 grep -m 8 -E 'undefined reference|ld: |Error [0-9]+' "tl-out/$log" || true
                 tail -n 6 "tl-out/$log"
               done > tl-logs/probe-failures.txt
             if [ -s tl-logs/probe-failures.txt ]; then
               scripts/ci-annotate.sh notice "Failed probes, first errors and last lines" tl-logs/probe-failures.txt 400
             fi
+          fi
+          if [ "${{ steps.kitcheck.outcome }}" = failure ]; then
+            scripts/ci-annotate.sh error "Gate 2 kit tree check" tl-logs/test-kpse-kit.log 40
           fi
           if [ "${{ steps.check.outcome }}" = failure ]; then
             scripts/ci-annotate.sh error "check-binaries output" tl-logs/check-binaries.log 40
