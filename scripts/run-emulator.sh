@@ -43,9 +43,17 @@ fi
 
 cp -R "$kit/." "$work/stage/"
 
-# Include the SharedUnixLibrary module from the toolchain if it ships one, so
-# the programs can start even if the emulated system does not provide it.
-sul=$(find "${GCCSDK_PREFIX:-/opt/riscos-gccsdk}" -type f \( -iname 'SharedULib,ffa' -o -iname 'SharedULib' -o -iname 'SharedUnixLibrary,ffa' \) 2>/dev/null | head -1 || true)
+# Include the SharedUnixLibrary module from the toolchain, so the programs can
+# start even though the emulated system does not provide it. UnixLib's build
+# installs the module as a program called "sul", once per multilib; take the
+# default one (shortest path) that contains the module's title.
+sul=
+while IFS= read -r candidate; do
+  if grep -aq 'SharedUnixLibrary' "$candidate" && ! head -c 4 "$candidate" | grep -aq 'ELF'; then
+    sul=$candidate
+    break
+  fi
+done < <(find "${GCCSDK_PREFIX:-/opt/riscos-gccsdk}" -type f \( -name sul -o -iname 'SharedULib,ffa' -o -iname 'SharedULib' \) 2>/dev/null | awk '{ print length, $0 }' | sort -n | cut -d' ' -f2-)
 if [ -n "$sul" ]; then
   echo "Including SharedUnixLibrary module from $sul"
   cp "$sul" "$work/stage/SharedULib,ffa"

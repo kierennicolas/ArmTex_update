@@ -31,6 +31,7 @@ want_rev=$(jq -r '.toolchain.gccsdk.revision' "$manifest")
 prefix=$(jq -r '.toolchain.gccsdk.install_prefix' "$manifest")
 target=$(jq -r '.toolchain.gccsdk.target' "$manifest")
 checksum_file="$repo_root/$(jq -r '.toolchain.gccsdk.source_checksums' "$manifest")"
+gcc_svn_pin="$repo_root/$(jq -r '.toolchain.gccsdk.gcc_svn_revision' "$manifest")"
 
 have_rev=$(git -C "$src" rev-parse HEAD)
 if [ "$have_rev" != "$want_rev" ]; then
@@ -61,6 +62,28 @@ start=$(date +%s)
 )
 end=$(date +%s)
 echo "GCCSDK build took $(( (end - start) / 60 )) minutes"
+
+# GCCSDK checks GCC itself out of the gcc-4_7-branch in GCC's Subversion
+# archive rather than downloading a release archive. That branch is closed, but
+# record and verify the revision so a change cannot slip in unnoticed.
+gcc_svn="$src/gcc4/srcdir.orig/gcc-trunk"
+gcc_svn_revision=
+gcc_svn_url=
+if [ -d "$gcc_svn/.svn" ]; then
+  gcc_svn_revision=$(svn info --show-item last-changed-revision "$gcc_svn")
+  gcc_svn_url=$(svn info --show-item url "$gcc_svn")
+  echo "GCC source: $gcc_svn_url at revision $gcc_svn_revision"
+  echo "$gcc_svn_url@$gcc_svn_revision" > "$out/gcc-svn-revision"
+  if [ -f "$gcc_svn_pin" ]; then
+    if [ "$(cat "$gcc_svn_pin")" != "$gcc_svn_url@$gcc_svn_revision" ]; then
+      echo "error: GCC source is $gcc_svn_url@$gcc_svn_revision but $gcc_svn_pin pins $(cat "$gcc_svn_pin")" >&2
+      exit 1
+    fi
+    echo "GCC source revision matches $gcc_svn_pin"
+  else
+    echo "warning: $gcc_svn_pin does not exist yet; commit $out/gcc-svn-revision there to pin the GCC source" >&2
+  fi
+fi
 
 # Record and verify the checksums of everything GCCSDK downloaded.
 downloads="$src/gcc4/srcdir.orig"
@@ -114,6 +137,7 @@ cat > "$out/provenance.json" <<EOF
   "prefix": "$prefix",
   "target": "$target",
   "gcc_version_line": $(jq -Rn --arg v "$("$cross/$target-gcc" --version | head -1)" '$v'),
+  "gcc_source": $(jq -Rn --arg v "${gcc_svn_url:+$gcc_svn_url@$gcc_svn_revision}" '$v'),
   "built_on": $(jq -Rn --arg v "$os_name" '$v'),
   "host_gcc": $(jq -Rn --arg v "$(gcc --version | head -1)" '$v'),
   "build_minutes": $(( (end - start) / 60 ))

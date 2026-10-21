@@ -9,13 +9,14 @@
       "gccsdk_release": "Rel6",
       "target": "arm-unknown-riscos",
       "install_prefix": "/opt/riscos-gccsdk/arm-unknown-riscos",
-      "source_checksums": "toolchain/gccsdk/source-checksums.sha256"
+      "source_checksums": "toolchain/gccsdk/source-checksums.sha256",
+      "gcc_svn_revision": "toolchain/gccsdk/gcc-svn-revision"
     },
     "image": {
       "registry": "ghcr.io",
       "name": "kierennicolas/armtex_update/gccsdk",
       "base_image": "ubuntu:24.04",
-      "base_image_digest": null
+      "base_image_digest": "sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac"
     }
   },
   "tools": {
