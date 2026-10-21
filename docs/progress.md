@@ -1,6 +1,6 @@
 # Progress
 
-**Current milestones:** M1 (waiting for Gate 1), M2 (waiting for Gate 2), M3 — pdfTeX (host side done and Emulator-tested; Gate 3 kit ready).
+**Current milestones:** M1 (waiting for Gate 1, [#3](https://github.com/kierennicolas/ArmTex_update/issues/3)), M2 (waiting for Gate 2, [#14](https://github.com/kierennicolas/ArmTex_update/issues/14)), M3 — pdfTeX (host side done and Emulator-tested; waiting for Gate 3, [#17](https://github.com/kierennicolas/ArmTex_update/issues/17)).
 
 Status levels are defined in [`CLAUDE.md`](../CLAUDE.md#status-levels). "Local" notes describe checks run on a development machine; they do not count towards a status level.
 
@@ -41,7 +41,7 @@ Reference CI runs: [39670666067](https://github.com/kierennicolas/ArmTex_update/
 
 ## Milestone 3 components
 
-Reference CI run: [39693205158](https://github.com/kierennicolas/ArmTex_update/actions/runs/39693205158), all jobs green ([#16](https://github.com/kierennicolas/ArmTex_update/pull/16)).
+Reference CI runs: [39693205158](https://github.com/kierennicolas/ArmTex_update/actions/runs/39693205158), the first in which the emulator's PDFs match the host's, and [39694425014](https://github.com/kierennicolas/ArmTex_update/actions/runs/39694425014), which made the Gate 3 artifact; all jobs green in both ([#16](https://github.com/kierennicolas/ArmTex_update/pull/16)).
 
 | Component | Status | Evidence and notes |
 |---|---|---|
@@ -51,7 +51,7 @@ Reference CI run: [39693205158](https://github.com/kierennicolas/ArmTex_update/a
 | pdftex on RISC OS | Cross-compiled; Emulator-tested | Under RISC OS Pyromaniac, loads the host-made formats and typesets both documents. The PDFs are identical to the host's apart from `/ID`, which hashes the working directory. Indicative only: soft-float build, not RISC OS 5.30 |
 | Emulator comparison (`compare-emulator-pdfs.sh`) | Host-tested | Blanks `/ID`, compares byte for byte, and shows any other difference in context |
 | `validate-pdf.sh` | Implemented | Checks structure, version, producer, page sizes, fonts and text against a reference. Local: tried on identical, re-dated, different and truncated PDFs. Not run in CI (the toolchain image has no qpdf or poppler-utils) |
-| Gate 3 kit (`package-pdftex-kit.sh`) | Host-tested | Artifact `TLPdfTeX-<commit>.zip`, 34.7 MB, 5682 tree files; procedure in [`testing.md`](testing.md#gate-3-pdftex-on-titanium) |
+| Gate 3 kit (`package-pdftex-kit.sh`) | Host-tested | Artifact `TLPdfTeX-f0c69cd3b61b.zip`, 34.8 MB, 5682 tree files, with the reference PDFs; no file names that RISC OS might mangle. Gate 3 is [#17](https://github.com/kierennicolas/ArmTex_update/issues/17); procedure in [`testing.md`](testing.md#gate-3-pdftex-on-titanium) |
 | `!TeXLive` launcher | Not started | Milestone 3's remaining work item |
 
 ## Known failures
@@ -67,7 +67,7 @@ Reference CI run: [39693205158](https://github.com/kierennicolas/ArmTex_update/a
 ## Next priorities
 
 1. Gate 1 ([#3](https://github.com/kierennicolas/ArmTex_update/issues/3)) and Gate 2 ([#14](https://github.com/kierennicolas/ArmTex_update/issues/14)): waiting for the maintainer's reports on Titanium.
-2. Gate 3: the pdfTeX kit on Titanium. Then the minimal `!TeXLive` launcher, so `pdflatex` works from the command line.
+2. Gate 3 ([#17](https://github.com/kierennicolas/ArmTex_update/issues/17)): the pdfTeX kit on Titanium. Meanwhile, the minimal `!TeXLive` launcher, so `pdflatex` works from the command line.
 3. Milestone 6 ([#8](https://github.com/kierennicolas/ArmTex_update/issues/8)): supply configure's C++11 answer for graphite2 and HarfBuzz in `config.site`, to find out whether the libraries themselves compile with GCC 4.7.
 4. Look for a C++17-capable RISC OS compiler (the GCC 8 and 10 work mentioned in community sources) before Milestone 7 ([#9](https://github.com/kierennicolas/ArmTex_update/issues/9)).
 

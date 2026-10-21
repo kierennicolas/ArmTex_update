@@ -119,7 +119,7 @@ Gate 3 is the key test of Milestone 3: pdfTeX, cross-compiled from TeX Live 2026
 
 ### The kit
 
-`TLPdfTeX-<commit>.zip`, an artifact of the Build run named in the Gate 3 `needs-hardware-test` issue (from the `TeX Live cross build` job). It holds:
+`TLPdfTeX-<commit>.zip`, an artifact of the Build run named in the Gate 3 `needs-hardware-test` issue ([#17](https://github.com/kierennicolas/ArmTex_update/issues/17)) (from the `TeX Live cross build` job). It holds:
 
 | Path in the kit | What it is |
 |---|---|
