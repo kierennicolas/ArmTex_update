@@ -244,6 +244,17 @@ class TlpdbTest(unittest.TestCase):
         self.assertTrue((tree / "tlpkg" / "tlpobj" / "pkg.tlpobj").exists())
         self.assertFalse((tree / "RELOC").exists())
 
+    def test_unpack_handles_dot_slash_names(self):
+        import tarfile
+        container = self.dir / "dot.tar.xz"
+        with tarfile.open(container, "w:xz") as archive:
+            info = tarfile.TarInfo("./RELOC/tex/generic/config/language.us")
+            info.size = 3
+            archive.addfile(info, io.BytesIO(b"us\n"))
+        tree = self.dir / "tree"
+        self.assertEqual(tlpdb.unpack(str(container), str(tree)), 1)
+        self.assertEqual((tree / "texmf-dist/tex/generic/config/language.us").read_bytes(), b"us\n")
+
     def test_unpack_refuses_unsafe_paths(self):
         import tarfile
         container = self.dir / "bad.tar.xz"

@@ -38,6 +38,8 @@ Usage:
         Unpack DIR/PKG.tar.xz into the tree TREE for each PKG, putting
         relocatable files (RELOC/...) under texmf-dist/. Exits 1 if a
         container is missing.
+    tlpdb.py members CONTAINER
+        List what is in a package container, as stored.
     tlpdb.py check TLPDB DIR PKG...
         Check that DIR holds PKG.tar.xz for each PKG, with the size and
         SHA-512 the database gives. A package with no container and no files
@@ -113,11 +115,14 @@ def unpack(container, tree):
         members = []
         for member in archive.getmembers():
             name = member.name
+            while name.startswith("./"):
+                name = name[2:]
             if name == "RELOC" or name.startswith("RELOC/"):
-                member.name = "texmf-dist" + name[len("RELOC"):]
+                name = "texmf-dist" + name[len("RELOC"):]
+            member.name = name
             parts = member.name.split("/")
             if member.name.startswith("/") or ".." in parts:
-                raise ValueError(f"{container}: unsafe path {name}")
+                raise ValueError(f"{container}: unsafe path {member.name}")
             if member.isfile():
                 count += 1
             members.append(member)
@@ -370,6 +375,13 @@ def main(argv):
             total += unpack(container, args[1])
             unpacked += 1
         print(f"unpacked {unpacked} packages, {total} files, into {args[1]}")
+        return 0
+    if command == "members" and len(args) == 1:
+        import tarfile
+        with tarfile.open(args[0], "r:xz") as archive:
+            for member in archive.getmembers():
+                kind = "d" if member.isdir() else "l" if member.issym() or member.islnk() else "-"
+                print(f"{kind} {member.size:>10} {member.name}")
         return 0
     if command == "check" and len(args) >= 3:
         records = parse(args[0])

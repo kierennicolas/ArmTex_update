@@ -92,12 +92,17 @@ for need in tlpkg/TeXLive/TLUtils.pm texmf-dist/web2c/texmf.cnf texmf-dist/web2c
       '/^name /{n=$2} $1 == f || $1 == r {print n}' "$db" | head -n 1)
     if grep -qx "${owner:-none}" "$logs/packages.txt"; then where="which is in the list"; else where="which is not in the list"; fi
     echo "error: the tree has no $need; the database puts it in package '${owner:-none}', $where" >&2
+    if [ -f "$sf/archive/${owner:-none}.tar.xz" ]; then
+      echo "  $owner's container holds:" >&2
+      python3 "$tl" members "$sf/archive/$owner.tar.xz" | head -n 12 | sed 's/^/    /' >&2
+    fi
     # Anything else with the same name, in case it has moved.
     awk -v b="/${need##*/}" '/^name /{n=$2} /^ / && index($1, b) && substr($1, length($1) - length(b) + 1) == b {print "  " n ": " $1}' "$db" | head -n 5 >&2
     missing=$((missing + 1))
   fi
 done
 if [ "$missing" -ne 0 ]; then
+  echo "The tree's top level: $(cd "$tree" && echo *)" >&2
   echo "Files under tex/generic/config in the tree:" >&2
   find "$tree/texmf-dist/tex/generic/config" -maxdepth 1 -type f 2> /dev/null | sed "s#^$tree/##" >&2 || true
   exit 1
