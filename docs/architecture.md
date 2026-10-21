@@ -129,6 +129,6 @@ The test kit is uploaded with `archive: false`, so the artifact is the RISC OS z
 
 ### What the C++ results mean for later milestones
 
-- **pdfTeX (Milestone 3)** links xpdf 4.06, which is C++. Whether that code avoids the missing features is unknown until it is compiled; Milestone 2 should try it early.
-- **LuaHBTeX (Milestone 6)** needs HarfBuzz 14.x. HarfBuzz requires C++11, and modern releases may use features GCC 4.7 lacks. Also to be tried early in Milestone 2.
+- **pdfTeX (Milestone 3)** links xpdf 4.06, which is C++. Milestone 2 found that it compiles with GCC 4.7 once `CXX` asks for C++11 (`-std=gnu++11`), and pdfTeX links ([CI run 39672805395](https://github.com/kierennicolas/ArmTex_update/actions/runs/39672805395)).
+- **LuaHBTeX (Milestone 6)** needs graphite2 1.3.14 and HarfBuzz 12.3.2 from this source. Neither configures: both run autoconf's C++11 test, which GCC 4.7 fails on a `static constexpr auto` member of a variadic class template ([CI run 39674828080](https://github.com/kierennicolas/ArmTex_update/actions/runs/39674828080)). Whether the libraries themselves compile is still unknown; Milestone 6 starts by supplying the test's answer and trying.
 - **XeTeX (Milestone 7)** is blocked with this compiler, as the precondition in the roadmap anticipated.
