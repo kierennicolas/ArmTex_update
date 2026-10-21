@@ -90,9 +90,10 @@ configure_args=(
   # C++98, and the C++ libraries (xpdf, HarfBuzz, graphite2) need C++11.
   CC="$target-gcc"
   CXX="$target-g++ -std=gnu++11"
-  AR="$target-ar"
-  RANLIB="$target-ranlib"
-  STRIP="$target-strip"
+  # AR, RANLIB and STRIP are left for configure to find from --host. Passing
+  # them explicitly also reaches web2c's helper programs, which are built for
+  # the build machine: their library then had no symbol index, and the host
+  # linker refused it.
   BUILDCC=gcc
   BUILDCXX=g++
   "CFLAGS=-O2 $variant_flags"

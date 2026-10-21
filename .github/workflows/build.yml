@@ -318,7 +318,8 @@ jobs:
             jq -r '.components[] | select(.kind == "probe" and .status != "built") | "\(.name) \(.status) \(.log)"' tl-out/results.json |
               while read -r name status log; do
                 echo "===== $name: $status ====="
-                grep -m 8 -E 'configure: error|error:|undefined reference|Error [0-9]+' "tl-out/$log" || true
+                grep -m 4 'configure: error' "tl-out/$log" || true
+                grep -m 8 -E 'undefined reference|ld: |Error [0-9]+' "tl-out/$log" || true
                 tail -n 6 "tl-out/$log"
               done > tl-logs/probe-failures.txt
             if [ -s tl-logs/probe-failures.txt ]; then
