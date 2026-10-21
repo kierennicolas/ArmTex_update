@@ -73,3 +73,42 @@ Comment on the Gate 1 `needs-hardware-test` issue with the items in [the gate re
 INFO lines record behaviour with no fixed expectation, such as how UnixLib translates filenames and whether an Obey-file variable without `$` is visible to programs. Report them as they are.
 
 If a `vfp` or `a15` program stops with an "undefined instruction" error, the VFP build does not suit this machine: report it, and the `soft` results still count.
+
+## Gate 2: kpsewhich on Titanium
+
+Gate 2 checks that kpathsea, cross-compiled from TeX Live 2026, finds files in a TeX Live-style tree from wherever the tree is installed. It settles the filename layout for Milestone 2 and shows whether kpathsea's self-location works under UnixLib.
+
+### The kit
+
+`TLKpse-<commit>.zip`, an artifact of the Build run named in the Gate 2 `needs-hardware-test` issue (from the `TeX Live cross build` job). It holds:
+
+| Path in the kit | What it is |
+|---|---|
+| `bin.riscos.kpsewhich` | kpsewhich, soft-float, statically linked |
+| `texmf-dist.web2c.texmf/cnf` | kpathsea's own `texmf.cnf`, unchanged |
+| `texmf-dist.ls-R` | the filename database for the tree |
+| `texmf-dist.tex.latex.base.article/cls` and others | stand-ins with the right names; Gate 2 tests finding files, not reading them |
+| `RunKpse` | Obey file that runs the searches and saves `Results` |
+
+This is the layout TeX Live uses on other systems: the program sits two levels below the kit's top directory, which kpathsea calls `SELFAUTOPARENT`, and everything else is found from there.
+
+### Steps
+
+1. Download, copy and extract the kit as for Gate 1 (steps 1 to 4 of Gate 1), using `TLKpse` in place of `TLTest`. Check that `RunKpse` is an Obey file and `bin.riscos.kpsewhich` is Absolute.
+2. Double-click `RunKpse`. It saves its output in `Results` in the `TLKpse` directory.
+3. Copy the whole `TLKpse` directory to a different place, for example the RAM disc or another directory on the hard disc. Run `RunKpse` in the copy and keep that `Results` too.
+4. If it stops with an error, note the message, then press F12, type `Spool` and press Return.
+5. Report both `Results` files, the two locations, and any error on the Gate 2 issue.
+
+### What the results should show
+
+| Query | Expected |
+|---|---|
+| `--version` | `kpathsea version 6.4.2`, exit status 0 |
+| `-var-value=SELFAUTOPARENT` | the kit's top directory, as a Unix-style path |
+| `-var-value=TEXMFDIST` | that path followed by `/texmf-dist` |
+| `texmf.cnf`, `article.cls`, `plain.tex`, `cmr10.tfm`, `cmr10.pfb` | a path inside the kit for each, exit status 0 |
+| `-must-exist article.cls` | the same path as `article.cls` |
+| The copy | the same results, with the copy's location |
+
+The CI job also runs the same queries under the emulator; see the job's annotations. That is indicative only.
