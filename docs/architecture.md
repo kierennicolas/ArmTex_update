@@ -88,7 +88,12 @@ The test kit is uploaded with `archive: false`, so the artifact is the RISC OS z
 | C++14 and C++17 | **Not supported**: the compiler rejects `-std=c++14`/`c++1y` and `-std=c++17`/`c++1z`. The bundled ICU (78.x) needs C++17, so XeTeX and bibtexu cannot be built with this compiler. Milestone 7 is blocked unless a newer compiler is found. | C++ probes, same run |
 | Floating-point variant | Open: decided from Gate 1 results. All variants build. | Gate 1 report |
 | Unaligned-access flags | Open: decided from Gate 1 results | Gate 1 report |
-| Emulator testing | Open. The first run on build.riscos.online stopped at the first program because Pyromaniac has no SharedUnixLibrary; the next run supplies the toolchain's own module. | Same run, emulator annotation |
+| Emulator testing | **Useful for soft-float builds only.** With the toolchain's SharedUnixLibrary module (`cross/bin/arm-unknown-riscos-sul`) uploaded alongside, the soft-float test programs run and pass on build.riscos.online. VFP builds cannot run there: Pyromaniac has no VFPSupport module. | [39652781660](https://github.com/kierennicolas/ArmTex_update/actions/runs/39652781660) |
+
+### What the emulator results mean
+
+- **Formats:** the soft-float build stores a `double` in FPA word order. Web2c's shareable format files are written for IEEE little-endian or big-endian machines, so a format generated on the Linux host might load wrongly in a soft-float build wherever it holds floating-point values (glue ratios). A VFP build should not have this problem. This bears on both the floating-point decision (Gate 1) and the format decision (Milestone 3).
+- **Filenames:** the translations match the planned default. TeX's extensions are not on UnixLib's suffix list, so `article.cls` becomes `article/cls` either way.
 
 ### What the C++ results mean for later milestones
 

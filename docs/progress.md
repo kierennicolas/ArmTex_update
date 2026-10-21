@@ -4,7 +4,7 @@
 
 Status levels are defined in [`CLAUDE.md`](../CLAUDE.md#status-levels). "Local" notes describe checks run on a development machine; they do not count towards a status level.
 
-Reference CI run: [39648204620](https://github.com/kierennicolas/ArmTex_update/actions/runs/39648204620) (all jobs green; toolchain image rebuilt from the pinned inputs).
+Reference CI runs: [39648204620](https://github.com/kierennicolas/ArmTex_update/actions/runs/39648204620) (toolchain image rebuilt from the pinned inputs; all jobs green) and [39652781660](https://github.com/kierennicolas/ArmTex_update/actions/runs/39652781660) (latest; all jobs green, emulator results below).
 
 ## Components
 
@@ -17,12 +17,14 @@ Reference CI run: [39648204620](https://github.com/kierennicolas/ArmTex_update/a
 | Binary checks (`check-binaries.sh`, `aifcheck.py`) | Host-tested | Every cross-compiled ELF and AIF passes; damaged copies, host executables and wrong file kinds are rejected |
 | RISC OS zip tool (`rozip.py`) | Host-tested | Unit tests pass in CI; the kit's archive is verified against its tree and by `zipinfo` |
 | Test kit (`package-testkit.sh`) | Host-tested | Artifact `TLTest-<commit>.zip`, about 1.8 MB, 16 files |
-| Emulator evaluation (`run-emulator.sh`) | Ran; programs did not start | build.riscos.online has no SharedUnixLibrary, and UnixLib programs refuse to start without it. The toolchain does not appear to install the module; see Known failures |
+| Soft-float `hello`, `float`, `cxx11`, `unaligned` | Emulator-tested | Every check passes under RISC OS Pyromaniac on build.riscos.online, with the toolchain's own SharedUnixLibrary module uploaded alongside, in [39652781660](https://github.com/kierennicolas/ArmTex_update/actions/runs/39652781660). Indicative only |
+| VFP and Cortex-A15 variants | Cross-compiled | Cannot run in the emulator: it has no VFPSupport module |
+| Emulator evaluation (`run-emulator.sh`) | Working | Runs every soft-float program; stops at the first VFP one |
 | Claude Code workflow (`claude.yml`) | Implemented | Needs the GitHub app and a secret; see [`building.md`](building.md#setting-up-the-claude-code-workflow) |
 
 ## Known failures
 
-- **Emulator:** every program stops at start-up with "This application requires at least version 1.07 of the SharedUnixLibrary module". The next step is to build the module from GCCSDK's `libunixlib/module/sul.s` and upload it with the kit. This does not block Gate 1.
+- **Emulator, VFP builds:** stop at start-up with "This program requires version 0.02 or later of the VFPSupport module". Pyromaniac does not provide that module, so VFP builds can only be tested on hardware.
 - **First toolchain build attempt:** failed after seven minutes in the GCCSDK build. Its log is in storage that could not be read, and the identical rerun succeeded, so the cause is unknown (probably a download). Failures now post the end of the build log as annotations.
 
 ## Untested
