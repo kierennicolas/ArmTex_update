@@ -12,6 +12,13 @@ on:
 permissions:
   contents: read
 
+# Every run step uses bash with -eo pipefail, so a failure piped through tee
+# fails the step. Without this, steps on the runner use "bash -e", which
+# ignores a failure before the pipe, and steps in a container use sh.
+defaults:
+  run:
+    shell: bash
+
 # A newer push queues behind a running build instead of cancelling it, so a
 # toolchain image build that is under way is never thrown away.
 concurrency:
@@ -38,6 +45,11 @@ jobs:
         run: |
           jq -e '.toolchain.gccsdk.revision | test("^[0-9a-f]{40}$")' upstream/manifest.json
           jq -e '.toolchain.image.name | test("^[a-z0-9._/-]+$")' upstream/manifest.json
+          jq -e '.texlive.source.revision | test("^[0-9a-f]{40}$")' upstream/manifest.json
+          jq -e '.texlive.support_files.sha256 | test("^[0-9a-f]{64}$")' upstream/manifest.json
+          jq -e '.texlive.support_files.sha512 | test("^[0-9a-f]{128}$")' upstream/manifest.json
+          jq -e '.texlive.support_files.tlpdb_sha256 | test("^[0-9a-f]{64}$")' upstream/manifest.json
+          jq -e '.texlive.support_files.signing_key.fingerprint | test("^[0-9A-F]{40}$")' upstream/manifest.json
 
       - name: Test programs compile with the host compiler
         run: |
@@ -68,11 +80,6 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     env:
       BUILD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-    # Inside a container the default shell is sh, which lacks pipefail: a
-    # failure piped through tee would go unnoticed. bash runs with -eo pipefail.
-    defaults:
-      run:
-        shell: bash
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -186,6 +193,77 @@ jobs:
             out/emulator/stage/.robuild.yaml
           if-no-files-found: warn
 
+  # The pinned support files (macros, fonts, configuration) from the TeX Live
+  # 2026 image. For Milestone 2 this checks the pins and takes a few packages;
+  # Milestone 3 builds a texmf tree from them. The packages are cached, so the
+  # 6.3 GB image is only downloaded when the pins or the package list change.
+  support-files:
+    name: Support files
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PACKAGES: plain latex cm amsfonts
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check TeX Live's signature on the image's checksum
+        id: signature
+        run: |
+          mkdir -p sf-logs
+          scripts/verify-iso-signature.sh 2>&1 | tee sf-logs/signature.log
+
+      - name: Cache key
+        id: key
+        run: |
+          image=$(jq -r '.texlive.support_files | "\(.file) \(.sha512)"' upstream/manifest.json | sha256sum | cut -c1-16)
+          recipe=$({ cat scripts/fetch-upstream.sh scripts/lib/tlpdb.py scripts/lib/iso9660.py; echo "$PACKAGES"; } | sha256sum | cut -c1-16)
+          echo "key=support-files-$image-$recipe" >> "$GITHUB_OUTPUT"
+
+      - name: Restore packages
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: sf
+          key: ${{ steps.key.outputs.key }}
+
+      - name: Take the packages from the image, checking every pin
+        id: fetch
+        env:
+          SUPPORT_ISO_DIR: ${{ runner.temp }}/iso
+        run: |
+          df -h . | tail -n 1
+          # Word splitting of PACKAGES is intended.
+          # shellcheck disable=SC2086
+          scripts/fetch-upstream.sh support-files sf $PACKAGES 2>&1 | tee sf-logs/fetch.log
+
+      - name: Save packages
+        if: steps.fetch.outcome == 'success' && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: sf
+          key: ${{ steps.key.outputs.key }}
+
+      - name: Size of scheme-basic
+        if: steps.fetch.outcome == 'success'
+        run: |
+          db=sf/tlpkg/texlive.tlpdb
+          mapfile -t packages < <(python3 scripts/lib/tlpdb.py resolve "$db" scheme-basic)
+          bytes=$(python3 scripts/lib/tlpdb.py size "$db" "${packages[@]}")
+          echo "scheme-basic: ${#packages[@]} packages, $((bytes / 1048576)) MiB of containers" | tee -a sf-logs/fetch.log
+
+      - name: Annotations
+        if: always()
+        run: |
+          level=notice
+          if [ "${{ job.status }}" != success ]; then level=error; fi
+          grep -v '^gpg: ' sf-logs/signature.log > sf-logs/signature-short.log || true
+          scripts/ci-annotate.sh "$level" "Image signature" sf-logs/signature-short.log 40
+          grep -v '^downloaded ' sf-logs/fetch.log > sf-logs/fetch-short.log || true
+          scripts/ci-annotate.sh "$level" "Support files" sf-logs/fetch-short.log 60
+
   texlive:
     name: TeX Live cross build (Milestone 2)
     needs: toolchain
@@ -199,9 +277,6 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    defaults:
-      run:
-        shell: bash
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

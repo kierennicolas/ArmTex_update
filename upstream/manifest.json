@@ -37,7 +37,23 @@
       "svn_revision": "r78399",
       "description": "texlive-2026.1 tag: the 2026 release (r78235) plus the dvipdfmx psfile quoting fix of 17 March 2026"
     },
-    "support_files": null,
-    "note": "Support files are pinned when Milestone 3 needs them; Milestone 2 tests kpathsea with a generated tree."
+    "support_files": {
+      "kind": "iso",
+      "file": "texlive2026-20260301.iso",
+      "urls": [
+        "https://mirrors.mit.edu/CTAN/systems/texlive/Images/texlive2026-20260301.iso",
+        "https://ctan.math.washington.edu/tex-archive/systems/texlive/Images/texlive2026-20260301.iso",
+        "https://mirror.ctan.org/systems/texlive/Images/texlive2026-20260301.iso"
+      ],
+      "size": 6784798720,
+      "sha256": "a143d17759f08344b916ae38829b71e1ea5a2f7029e87798242a588c918469d2",
+      "sha512": "4a9071bb567c3bdd6443378dedc8e485aea4a2f1203ec8ed7c17f6787093b9c37636a037032c0be63352e3d0bf98cf5616dab19fdcd7cb83f766b3e085b620ff",
+      "tlpdb_sha256": "7064690a7bae0e32118817f09b1dbbaebfaad7c64aeb308989f9850e7b02aaae",
+      "signing_key": {
+        "url": "https://tug.org/texlive/files/texlive.asc",
+        "fingerprint": "C78B82D8C79512F79CC0D7C80D5E5D9106BAB6BC"
+      },
+      "description": "The TeX Live 2026 DVD image of 1 March 2026. TeX Live publishes its SHA-512 in a file signed with the key above; scripts/verify-iso-signature.sh checks that. Packages are taken from its archive/ directory and checked against the size and SHA-512 its texlive.tlpdb gives. When TeX Live 2027 is released the image moves from CTAN's Images directory to the historic archive (tug.org/historic)."
+    }
   }
 }

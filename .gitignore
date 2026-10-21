@@ -11,3 +11,7 @@
 __pycache__/
 *.pyc
 /out-logs/
+
+# Support-file snapshot fetched by CI
+/sf/
+/sf-logs/

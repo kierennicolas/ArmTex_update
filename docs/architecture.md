@@ -44,6 +44,24 @@ The source is the `texlive-2026.1` tag of the [TeX-Live/texlive-source](https://
 
 Library versions in this source, from `libs/README`: zlib 1.3.2, libpng 1.6.55, xpdf 4.06, FreeType 2.14.1, HarfBuzz 12.3.2, graphite2 1.3.14, ICU 78.2, Lua 5.3.6, pplib 2.05.0.
 
+## Support files
+
+Macros, fonts and configuration come from the TeX Live 2026 DVD image, `texlive2026-20260301.iso` (6.3 GB), which holds the whole 2026 release as it was on 1 March 2026: the package database `tlpkg/texlive.tlpdb` and every package as `archive/<package>.tar.xz`.
+
+How the pin works:
+
+- `upstream/manifest.json` pins the image's size, SHA-256 and SHA-512, and the SHA-256 of the database inside it.
+- TeX Live publishes the image's SHA-512 in a file signed with its own key. `scripts/verify-iso-signature.sh` checks that signature against the key's fingerprint, also pinned, and that the signed value is the pinned one. It needs gpg, so it runs on the CI runner.
+- The database lists every package with the size and SHA-512 of its container, so the pins cover every support file.
+- `scripts/fetch-upstream.sh support-files <dir> [package...]` checks the image against its pins, takes the database and the named packages out of it with `scripts/lib/iso9660.py` (a small reader for ISO 9660 with Rock Ridge and Joliet names, so nothing is mounted), and checks each package against the database. The image is only downloaded when `<dir>` lacks something asked for; CI caches `<dir>`.
+- `scripts/lib/tlpdb.py resolve` lists a package and everything it depends on, leaving out the per-platform binaries (`.ARCH`), which this project builds itself.
+
+The CI job `support-files` runs all of this on every build. Milestone 3 builds the texmf tree from these packages.
+
+**Why the image and not a dated tlnet snapshot.** `CLAUDE.md` allows either. The only archive of dated tlnet snapshots, at texlive.info, now answers automated downloads with a bot-check page instead of the file (an HTML page titled "Oh noes!", [CI job 119495856939](https://github.com/kierennicolas/ArmTex_update/actions/runs/39678137603/job/119495856939)), and getting round that would not be appropriate. The image is fixed, signed and mirrored across CTAN. Its cost, a 6.3 GB download whenever the package list changes, is acceptable because the extracted packages are cached.
+
+**When TeX Live 2027 is released** (about March 2027), CTAN's `Images` directory will switch to the 2027 image. The 2026 image stays available from TeX Live's historic archive (tug.org/historic); its URL then needs adding to the manifest, with the same pins.
+
 ## Cross-building TeX Live
 
 Two stages, both in the `texlive` job of `build.yml`, inside the toolchain image:
