@@ -46,19 +46,21 @@ Library versions in this source, from `libs/README`: zlib 1.3.2, libpng 1.6.55, 
 
 ## Support files
 
-Macros, fonts and configuration come from a dated snapshot of TeX Live 2026's network repository (tlnet), from the archive at texlive.info that keeps a copy of tlnet for every day; nixpkgs uses the same archive to pin TeX Live. The snapshot is 1 October 2026, a TeX Live 2026 database (release 2026, not frozen: the year is still open for updates).
-
-Why a dated tlnet snapshot rather than the TL2026 ISO: the build needs a few hundred megabytes of packages, not a 6 GB image, and a snapshot can be fetched package by package. Why not live tlnet: it changes daily.
+Macros, fonts and configuration come from the TeX Live 2026 DVD image, `texlive2026-20260301.iso` (6.3 GB), which holds the whole 2026 release as it was on 1 March 2026: the package database `tlpkg/texlive.tlpdb` and every package as `archive/<package>.tar.xz`.
 
 How the pin works:
 
-- `upstream/manifest.json` pins the SHA-256 of the snapshot's package database, `tlpkg/texlive.tlpdb.xz`.
-- The database lists every package with the size and SHA-512 of its container, `archive/<package>.tar.xz`. `scripts/lib/tlpdb.py fetch` checks both for every container it fetches, so the one pin covers every support file.
-- `scripts/fetch-upstream.sh support-files <dir> [package...]` fetches the database, checks the pin and that the database is for the manifest's release year, then fetches the packages named.
-- `scripts/verify-tlpdb-signature.sh` checks, on the CI runner, that the database's SHA-512 is signed with TeX Live's own key (fingerprint pinned in the manifest), so the pinned database is TeX Live's and not just what the archive served.
+- `upstream/manifest.json` pins the image's size, SHA-256 and SHA-512, and the SHA-256 of the database inside it.
+- TeX Live publishes the image's SHA-512 in a file signed with its own key. `scripts/verify-iso-signature.sh` checks that signature against the key's fingerprint, also pinned, and that the signed value is the pinned one. It needs gpg, so it runs on the CI runner.
+- The database lists every package with the size and SHA-512 of its container, so the pins cover every support file.
+- `scripts/fetch-upstream.sh support-files <dir> [package...]` checks the image against its pins, takes the database and the named packages out of it with `scripts/lib/iso9660.py` (a small reader for ISO 9660 with Rock Ridge and Joliet names, so nothing is mounted), and checks each package against the database. The image is only downloaded when `<dir>` lacks something asked for; CI caches `<dir>`.
 - `scripts/lib/tlpdb.py resolve` lists a package and everything it depends on, leaving out the per-platform binaries (`.ARCH`), which this project builds itself.
 
 The CI job `support-files` runs all of this on every build. Milestone 3 builds the texmf tree from these packages.
+
+**Why the image and not a dated tlnet snapshot.** `CLAUDE.md` allows either. The only archive of dated tlnet snapshots, at texlive.info, now answers automated downloads with a bot-check page instead of the file (an HTML page titled "Oh noes!", [CI job 119495856939](https://github.com/kierennicolas/ArmTex_update/actions/runs/39678137603/job/119495856939)), and getting round that would not be appropriate. The image is fixed, signed and mirrored across CTAN. Its cost, a 6.3 GB download whenever the package list changes, is acceptable because the extracted packages are cached.
+
+**When TeX Live 2027 is released** (about March 2027), CTAN's `Images` directory will switch to the 2027 image. The 2026 image stays available from TeX Live's historic archive (tug.org/historic); its URL then needs adding to the manifest, with the same pins.
 
 ## Cross-building TeX Live
 

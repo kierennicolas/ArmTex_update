@@ -1,6 +1,6 @@
 """Unit tests for scripts/lib/tlpdb.py, using a small database written in the
-format of TeX Live's texlive.tlpdb and containers served from a local
-directory through file:// URLs.
+format of TeX Live's texlive.tlpdb, containers held in a stand-in for the
+image, and the small ISO image in tests/fixtures.
 
 Run with: python3 -m unittest discover -s tests/scripts -p 'test_*.py'
 """
@@ -8,6 +8,7 @@ Run with: python3 -m unittest discover -s tests/scripts -p 'test_*.py'
 import contextlib
 import hashlib
 import io
+import lzma
 import os
 import pathlib
 import sys
@@ -17,11 +18,13 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "scripts", "lib"))
 
+import iso9660  # noqa: E402
 import tlpdb  # noqa: E402
 
 tlpdb.RETRY_DELAY = 0
 
-PLAIN = b"plain container contents\n"
+# The contents of archive/plain.tar.xz in tests/fixtures/rockridge.iso.xz.
+PLAIN = b"plain container\n"
 LATEX = b"latex container contents, a little longer\n"
 
 
@@ -77,6 +80,19 @@ revision 1
 """
 
 
+class FakeImage:
+    """Files by path, with the copy method of iso9660.Image."""
+
+    def __init__(self, files):
+        self.files = files
+
+    def copy(self, path, out):
+        if path not in self.files:
+            raise iso9660.IsoError(f"{path}: not in the image")
+        out.write(self.files[path])
+        return len(self.files[path])
+
+
 class TlpdbTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -84,15 +100,20 @@ class TlpdbTest(unittest.TestCase):
         self.db = self.dir / "texlive.tlpdb"
         self.db.write_text(DATABASE)
         self.records = tlpdb.parse(self.db)
-        self.mirror = self.dir / "mirror"
-        (self.mirror / "archive").mkdir(parents=True)
-        (self.mirror / "archive" / "plain.tar.xz").write_bytes(PLAIN)
-        (self.mirror / "archive" / "latex.tar.xz").write_bytes(LATEX)
-        self.base = self.mirror.as_uri()
+        self.image = FakeImage({
+            "archive/plain.tar.xz": PLAIN,
+            "archive/latex.tar.xz": LATEX,
+        })
         self.dest = self.dir / "dest"
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def run_main(self, *args):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            status = tlpdb.main(["tlpdb.py", *args])
+        return status, out.getvalue()
 
     def test_parse_skips_file_lists(self):
         self.assertEqual(set(self.records), {
@@ -120,41 +141,58 @@ class TlpdbTest(unittest.TestCase):
             tlpdb.resolve(self.records, ["no-such-package"])
 
     def test_size_command(self):
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            status = tlpdb.main(["tlpdb.py", "size", str(self.db), "plain", "latex", "collection-tiny"])
+        status, out = self.run_main("size", str(self.db), "plain", "latex", "collection-tiny")
         self.assertEqual(status, 0)
-        self.assertEqual(out.getvalue().strip(), str(len(PLAIN) + len(LATEX)))
+        self.assertEqual(out.strip(), str(len(PLAIN) + len(LATEX)))
 
-    def test_fetch_checks_and_keeps_good_containers(self):
-        self.assertEqual(tlpdb.fetch(self.records, self.base, str(self.dest), ["plain", "latex"]), 0)
+    def test_digests(self):
+        size, sha256, sha512 = tlpdb.digests(self.db)
+        data = DATABASE.encode()
+        self.assertEqual(size, len(data))
+        self.assertEqual(sha256, hashlib.sha256(data).hexdigest())
+        self.assertEqual(sha512, hashlib.sha512(data).hexdigest())
+
+    def test_extract_checks_and_keeps_good_containers(self):
+        self.assertEqual(tlpdb.extract(self.records, self.image, str(self.dest), ["plain", "latex"]), 0)
         self.assertEqual((self.dest / "plain.tar.xz").read_bytes(), PLAIN)
         self.assertEqual((self.dest / "latex.tar.xz").read_bytes(), LATEX)
-        # A second fetch finds them already present and does not download again.
-        (self.mirror / "archive" / "plain.tar.xz").unlink()
-        self.assertEqual(tlpdb.fetch(self.records, self.base, str(self.dest), ["plain"]), 0)
+        self.assertEqual(tlpdb.check(self.records, str(self.dest), ["plain", "latex"]), 0)
+        # A second run finds them already present and does not read the image.
+        self.assertEqual(tlpdb.extract(self.records, FakeImage({}), str(self.dest), ["plain"]), 0)
 
-    def test_fetch_rejects_wrong_contents(self):
-        (self.mirror / "archive" / "plain.tar.xz").write_bytes(PLAIN.upper())
-        self.assertEqual(tlpdb.fetch(self.records, self.base, str(self.dest), ["plain"]), 1)
+    def test_extract_rejects_wrong_contents(self):
+        self.image.files["archive/plain.tar.xz"] = PLAIN.upper()
+        self.assertEqual(tlpdb.extract(self.records, self.image, str(self.dest), ["plain"]), 1)
+        self.assertFalse((self.dest / "plain.tar.xz").exists())
+        self.assertFalse((self.dest / "plain.tar.xz.part").exists())
+
+    def test_extract_rejects_wrong_size(self):
+        self.image.files["archive/plain.tar.xz"] = PLAIN + b"x"
+        self.assertEqual(tlpdb.extract(self.records, self.image, str(self.dest), ["plain"]), 1)
         self.assertFalse((self.dest / "plain.tar.xz").exists())
 
-    def test_fetch_rejects_wrong_size(self):
-        (self.mirror / "archive" / "plain.tar.xz").write_bytes(PLAIN + b"x")
-        self.assertEqual(tlpdb.fetch(self.records, self.base, str(self.dest), ["plain"]), 1)
-        self.assertFalse((self.dest / "plain.tar.xz").exists())
-
-    def test_fetch_replaces_a_damaged_local_copy(self):
+    def test_extract_replaces_a_damaged_local_copy(self):
         self.dest.mkdir()
         (self.dest / "plain.tar.xz").write_bytes(b"damaged")
-        self.assertEqual(tlpdb.fetch(self.records, self.base, str(self.dest), ["plain"]), 0)
+        self.assertEqual(tlpdb.check(self.records, str(self.dest), ["plain"]), 1)
+        self.assertEqual(tlpdb.extract(self.records, self.image, str(self.dest), ["plain"]), 0)
         self.assertEqual((self.dest / "plain.tar.xz").read_bytes(), PLAIN)
 
-    def test_fetch_reports_missing_and_unknown(self):
-        (self.mirror / "archive" / "latex.tar.xz").unlink()
-        failures = tlpdb.fetch(self.records, self.base, str(self.dest),
-                               ["latex", "no-such-package", "nochecksum"])
+    def test_extract_reports_missing_and_unknown(self):
+        del self.image.files["archive/latex.tar.xz"]
+        failures = tlpdb.extract(self.records, self.image, str(self.dest),
+                                 ["latex", "no-such-package", "nochecksum"])
         self.assertEqual(failures, 3)
+        self.assertEqual(tlpdb.check(self.records, str(self.dest), ["latex"]), 1)
+
+    def test_extract_from_a_real_image(self):
+        with open(os.path.join(ROOT, "tests", "fixtures", "rockridge.iso.xz"), "rb") as handle:
+            iso = io.BytesIO(lzma.decompress(handle.read()))
+        image_path = self.dir / "image.iso"
+        image_path.write_bytes(iso.getvalue())
+        status, out = self.run_main("extract", str(self.db), str(image_path), str(self.dest), "plain")
+        self.assertEqual(status, 0, out)
+        self.assertEqual((self.dest / "plain.tar.xz").read_bytes(), PLAIN)
 
 
 if __name__ == "__main__":

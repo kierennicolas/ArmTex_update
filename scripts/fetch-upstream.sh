@@ -9,14 +9,22 @@
 #                    fetched with git at depth 1 and checked against the pin.
 #                    If <dest-dir> already holds that revision (from a cache,
 #                    say), it is left alone.
-#   support-files    the package database (texlive.tlpdb) of the pinned
-#                    snapshot named by .texlive.support_files, checked against
-#                    its SHA-256 pin and its release year against
-#                    .texlive.release; then each package named, as
-#                    <dest-dir>/archive/<package>.tar.xz, checked against the
-#                    size and SHA-512 the database gives. Packages are fetched
-#                    as named, without their dependencies; scripts/lib/tlpdb.py
-#                    resolve lists those.
+#   support-files    packages from the TeX Live image (the TL2026 ISO) named
+#                    by .texlive.support_files: the package database
+#                    (tlpkg/texlive.tlpdb, checked against its SHA-256 pin
+#                    and its release year against .texlive.release), then
+#                    each package named, as <dest-dir>/archive/<package>.tar.xz,
+#                    checked against the size and SHA-512 the database gives.
+#                    Packages are taken as named, without their dependencies;
+#                    scripts/lib/tlpdb.py resolve lists those.
+#
+#                    The image (6.3 GB) is downloaded only when <dest-dir>
+#                    does not already hold everything asked for, into
+#                    $SUPPORT_ISO_DIR (default <dest-dir>/.iso), and checked
+#                    against its SHA-256 and SHA-512 pins. It is deleted
+#                    afterwards unless KEEP_ISO=1. While a pin is empty, the
+#                    values found are printed and the script fails at the end,
+#                    so that a new image can be pinned from one run.
 #
 # Exits 1 if anything differs from its pin.
 
@@ -35,50 +43,98 @@ dest=$2
 shift 2
 
 fetch_support_files() {
-  local base path pin release have db info got_release line
-  base=$(jq -r '.texlive.support_files.base_url // empty' "$manifest")
-  path=$(jq -r '.texlive.support_files.tlpdb.path // empty' "$manifest")
-  pin=$(jq -r '.texlive.support_files.tlpdb.sha256 // empty' "$manifest")
+  local sf=.texlive.support_files file release tlpdb_pin iso_sha256 iso_sha512 iso_size
+  file=$(jq -r "$sf.file // empty" "$manifest")
+  if [ -z "$file" ]; then
+    echo "error: upstream/manifest.json pins no support-file image" >&2
+    exit 1
+  fi
   release=$(jq -r '.texlive.release' "$manifest")
-  if [ -z "$base" ] || [ -z "$path" ]; then
-    echo "error: upstream/manifest.json pins no support-file snapshot" >&2
-    exit 1
+  tlpdb_pin=$(jq -r "$sf.tlpdb_sha256 // empty" "$manifest")
+  iso_sha256=$(jq -r "$sf.sha256 // empty" "$manifest")
+  iso_sha512=$(jq -r "$sf.sha512 // empty" "$manifest")
+  iso_size=$(jq -r "$sf.size // empty" "$manifest")
+  local tl="$root/scripts/lib/tlpdb.py" db="$dest/tlpkg/texlive.tlpdb" unpinned=0
+
+  # Everything already here (from a cache, say)? Then the image is not needed.
+  if [ -n "$tlpdb_pin" ] && [ -f "$db" ] && [ "$(sha256sum "$db" | cut -d' ' -f1)" = "$tlpdb_pin" ] &&
+    { [ $# -eq 0 ] || python3 "$tl" check "$db" "$dest/archive" "$@" > /dev/null; }; then
+    echo "$input: $dest already holds the pinned database and every package asked for"
+    report_database "$db" "$release"
+    return 0
   fi
-  mkdir -p "$dest/tlpkg"
-  db="$dest/tlpkg/$(basename "$path")"
-  if [ -f "$db" ] && [ -n "$pin" ] && [ "$(sha256sum "$db" | cut -d' ' -f1)" = "$pin" ]; then
-    echo "$input: $db is already the pinned database"
-  else
-    python3 "$root/scripts/lib/tlpdb.py" download "$base/$path" "$db"
+
+  local isodir=${SUPPORT_ISO_DIR:-$dest/.iso}
+  local iso="$isodir/$file" have_size have_sha256 have_sha512 url
+  mkdir -p "$isodir" "$dest/tlpkg"
+  if [ ! -f "$iso" ]; then
+    local fetched=0
+    while IFS= read -r url; do
+      echo "$input: downloading $url"
+      if python3 "$tl" download "$url" "$iso"; then
+        fetched=1
+        break
+      fi
+    done < <(jq -r "$sf.urls[]" "$manifest")
+    if [ "$fetched" != 1 ]; then
+      echo "error: no mirror in .texlive.support_files.urls supplied $file" >&2
+      exit 1
+    fi
   fi
-  have=$(sha256sum "$db" | cut -d' ' -f1)
-  echo "$input: $base/$path has SHA-256 $have"
-  # An xz file starts with FD 37 7A 58 5A 00. Anything else (an error page, a
-  # bot check) is shown, briefly, so the log says what was served instead.
-  if [ "$(head -c 6 "$db" | od -An -tx1 | tr -d ' \n')" != fd377a585a00 ]; then
-    echo "error: $base/$path is not an xz file; it begins:" >&2
-    head -c 600 "$db" | tr -c '[:print:]\n' '?' >&2
-    echo >&2
-    exit 1
-  fi
-  if [ -z "$pin" ]; then
-    echo "error: .texlive.support_files.tlpdb.sha256 is empty; pin the value above after checking it" >&2
-    exit 1
-  fi
-  if [ "$have" != "$pin" ]; then
-    echo "error: the database's SHA-256 is $have but the manifest pins $pin" >&2
-    exit 1
-  fi
-  xz -dc "$db" > "$dest/tlpkg/texlive.tlpdb"
-  info=$(python3 "$root/scripts/lib/tlpdb.py" info "$dest/tlpkg/texlive.tlpdb")
-  while IFS= read -r line; do echo "$input: database $line"; done <<< "$info"
-  got_release=$(awk '$1 == "release" { print $2 }' <<< "$info")
-  if [ "$got_release" != "$release" ]; then
-    echo "error: the database is for TeX Live $got_release, but the manifest pins release $release" >&2
-    exit 1
-  fi
+  {
+    read -r _ have_size
+    read -r _ have_sha256
+    read -r _ have_sha512
+  } < <(python3 "$tl" digests "$iso")
+  echo "$input: $file: $have_size bytes, SHA-256 $have_sha256"
+  echo "$input: $file: SHA-512 $have_sha512"
+  check_pin "image size" "$iso_size" "$have_size"
+  check_pin "image SHA-256" "$iso_sha256" "$have_sha256"
+  check_pin "image SHA-512" "$iso_sha512" "$have_sha512"
+
+  python3 "$root/scripts/lib/iso9660.py" extract "$iso" tlpkg/texlive.tlpdb "$db"
+  local have_tlpdb
+  have_tlpdb=$(sha256sum "$db" | cut -d' ' -f1)
+  echo "$input: tlpkg/texlive.tlpdb: SHA-256 $have_tlpdb"
+  check_pin "database SHA-256" "$tlpdb_pin" "$have_tlpdb"
+  report_database "$db" "$release"
+
+  local status=0
   if [ $# -gt 0 ]; then
-    python3 "$root/scripts/lib/tlpdb.py" fetch "$dest/tlpkg/texlive.tlpdb" "$base" "$dest/archive" "$@"
+    python3 "$tl" extract "$db" "$iso" "$dest/archive" "$@" || status=$?
+  fi
+  if [ "${KEEP_ISO:-0}" != 1 ]; then
+    rm -f "$iso"
+  fi
+  if [ "$unpinned" -ne 0 ]; then
+    echo "error: $unpinned pin(s) in .texlive.support_files are empty; pin the values above once the image's signature is checked" >&2
+    exit 1
+  fi
+  return "$status"
+}
+
+# check_pin <what> <pinned value> <value found>: fail on a mismatch; count an
+# empty pin, so the caller can fail after reporting everything.
+check_pin() {
+  if [ -z "$2" ]; then
+    echo "$input: $1 is not pinned yet; found $3"
+    unpinned=$((unpinned + 1))
+  elif [ "$2" != "$3" ]; then
+    echo "error: $1 is $3, but the manifest pins $2" >&2
+    exit 1
+  fi
+}
+
+# report_database <tlpdb> <release>: print the database's settings and fail
+# unless it is for the pinned release year.
+report_database() {
+  local info got line
+  info=$(python3 "$root/scripts/lib/tlpdb.py" info "$1")
+  while IFS= read -r line; do echo "$input: database $line"; done <<< "$info"
+  got=$(awk '$1 == "release" { print $2 }' <<< "$info")
+  if [ "$got" != "$2" ]; then
+    echo "error: the database is for TeX Live $got, but the manifest pins release $2" >&2
+    exit 1
   fi
 }
 
