@@ -33,6 +33,8 @@ Reference CI runs: [39648204620](https://github.com/kierennicolas/ArmTex_update/
 
 ## Next priorities
 
-1. Gate 1: open the `needs-hardware-test` issue with the kit from the reference run and the procedure in [`testing.md`](testing.md#gate-1-toolchain-test-kit-on-titanium).
-2. Meanwhile, Milestone 2 host-side preparation: pin the TeX Live 2026 release branch, and try compiling xpdf and HarfBuzz from it with GCC 4.7, since the C++ results put both in doubt.
-3. Look for a C++17-capable RISC OS compiler (the GCC 8 and 10 work mentioned in community sources) before Milestone 7.
+1. Gate 1 ([#3](https://github.com/kierennicolas/ArmTex_update/issues/3)): waiting for the maintainer's report on Titanium.
+2. Meanwhile, Milestone 2 ([#4](https://github.com/kierennicolas/ArmTex_update/issues/4)) host-side preparation: pin the TeX Live 2026 release branch, and try compiling xpdf and HarfBuzz from it with GCC 4.7, since the C++ results put both in doubt.
+3. Look for a C++17-capable RISC OS compiler (the GCC 8 and 10 work mentioned in community sources) before Milestone 7 ([#9](https://github.com/kierennicolas/ArmTex_update/issues/9)).
+
+Milestone issues: [#2](https://github.com/kierennicolas/ArmTex_update/issues/2) (M1) and [#4](https://github.com/kierennicolas/ArmTex_update/issues/4)–[#12](https://github.com/kierennicolas/ArmTex_update/issues/12) (M2–M10).
