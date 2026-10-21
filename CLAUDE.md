@@ -110,9 +110,10 @@ Created as the milestones need them. Keep this table current.
 | `scripts/summarise-results.sh` | Markdown summary of `results.json` for the CI job summary | M1 |
 | `scripts/run-emulator.sh` | Run the test kit on build.riscos.online (Emulator-tested at most) | M1 |
 | `scripts/ci-annotate.sh` | Copy the end of a log into GitHub annotations, which are readable without the full job log | M1 |
-| `scripts/fetch-upstream.sh` | Fetch pinned inputs and verify checksums | Planned |
-| `scripts/build-host-tools.sh` | Native host build: tangle, ctangle, otangle, tie, kpsewhich, host pdfTeX | Planned |
-| `scripts/build-texlive.sh` | Cross-build the enabled TeX Live components | Planned |
+| `scripts/fetch-upstream.sh` | Fetch pinned inputs and verify them (TeX Live source by commit) | M2 |
+| `scripts/build-host-tools.sh` | Native host build: tangle, ctangle, otangle, tie, kpsewhich, host pdfTeX | M2 |
+| `scripts/build-texlive.sh` | Cross-configure TeX Live and build the enabled components; write `results.json` | M2 |
+| `scripts/summarise-texlive.sh` | Markdown summary of the TeX Live cross build's `results.json` | M2 |
 | `scripts/test-build.sh` | Host-side tests and output validation | Planned |
 | `scripts/validate-pdf.sh` | Check a PDF produced on hardware against a host-produced reference | Planned |
 | `scripts/package-release.sh` | Build the `!TeXLive` archive with filetypes preserved | Planned |

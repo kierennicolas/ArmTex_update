@@ -30,8 +30,14 @@
   },
   "texlive": {
     "release": 2026,
-    "source": null,
+    "source": {
+      "repository": "https://github.com/TeX-Live/texlive-source",
+      "ref": "refs/heads/tags/texlive-2026.1",
+      "revision": "6a300188053b8f2ded89dbd52293732a706b9c0e",
+      "svn_revision": "r78399",
+      "description": "texlive-2026.1 tag: the 2026 release (r78235) plus the dvipdfmx psfile quoting fix of 17 March 2026"
+    },
     "support_files": null,
-    "note": "Pinned in Milestone 2."
+    "note": "Support files are pinned when Milestone 3 needs them; Milestone 2 tests kpathsea with a generated tree."
   }
 }

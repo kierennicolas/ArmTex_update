@@ -185,3 +185,107 @@ jobs:
             out/emulator/output.txt
             out/emulator/stage/.robuild.yaml
           if-no-files-found: warn
+
+  texlive:
+    name: TeX Live cross build (Milestone 2)
+    needs: toolchain
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: read
+    container:
+      image: ${{ needs.toolchain.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fetch the pinned TeX Live source
+        run: scripts/fetch-upstream.sh texlive-source upstream-src/texlive
+
+      # Host tools depend only on the TeX Live source, the build script and the
+      # host compiler in the toolchain image, so they are cached on all three.
+      - name: Cache key for host tools
+        id: key
+        env:
+          IMAGE: ${{ needs.toolchain.outputs.image }}
+        run: |
+          revision=$(jq -r .texlive.source.revision upstream/manifest.json)
+          script=$(sha256sum scripts/build-host-tools.sh | cut -c1-16)
+          image=$(printf '%s' "$IMAGE" | sha256sum | cut -c1-16)
+          echo "key=host-tools-${revision:0:12}-$script-$image" >> "$GITHUB_OUTPUT"
+
+      - name: Restore host tools
+        id: cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: host-tools
+          key: ${{ steps.key.outputs.key }}
+
+      - name: Build host tools
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p tl-logs
+          scripts/build-host-tools.sh upstream-src/texlive host-tools 2>&1 | tee tl-logs/host-tools.log
+
+      - name: Cross-build TeX Live components
+        id: cross
+        run: |
+          mkdir -p tl-logs
+          scripts/build-texlive.sh upstream-src/texlive host-tools tl-out 2>&1 | tee tl-logs/build-texlive.log
+
+      - name: Check cross-compiled programs
+        id: check
+        if: always() && steps.cross.outcome != 'skipped'
+        run: |
+          shopt -s nullglob
+          elfs=(tl-out/bin/*)
+          aifs=(tl-out/aif/*)
+          if [ ${#elfs[@]} -eq 0 ]; then
+            echo "No programs were built; nothing to check."
+            exit 0
+          fi
+          { scripts/check-binaries.sh --elf "${elfs[@]}" && scripts/check-binaries.sh --aif "${aifs[@]}"; } 2>&1 | tee tl-logs/check-binaries.log
+
+      - name: Job summary and annotations
+        if: always()
+        run: |
+          if [ -f tl-out/results.json ]; then
+            scripts/summarise-texlive.sh tl-out > tl-logs/summary.md
+            cat tl-logs/summary.md >> "$GITHUB_STEP_SUMMARY"
+            scripts/ci-annotate.sh notice "TeX Live cross build results" tl-logs/summary.md 120
+            # The end of each failed required component's log.
+            jq -r '.components[] | select(.kind == "required" and .status != "built") | .log' tl-out/results.json |
+              head -n 6 | while read -r log; do
+                scripts/ci-annotate.sh error "$(basename "$log") (required component), last lines" "tl-out/$log" 40
+              done
+          fi
+          if [ "${{ steps.check.outcome }}" = failure ]; then
+            scripts/ci-annotate.sh error "check-binaries output" tl-logs/check-binaries.log 40
+          fi
+          for f in host-tools build-texlive; do
+            if [ -f "tl-logs/$f.log" ] && [ ! -f tl-out/results.json ]; then
+              scripts/ci-annotate.sh error "$f output, last lines" "tl-logs/$f.log" 40
+            fi
+          done
+
+      - name: Upload TeX Live build record
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: texlive-build-record
+          path: |
+            tl-out/results.json
+            tl-out/logs/
+            tl-logs/
+            host-tools/host-tools.json
+            host-tools/logs/
+          if-no-files-found: warn

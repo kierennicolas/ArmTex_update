@@ -1,0 +1,12 @@
+# Autoconf site defaults for cross-compiling TeX Live for RISC OS
+# (arm-unknown-riscos, GCCSDK with UnixLib).
+#
+# configure cannot run test programs when cross-compiling, so tests that need
+# to run one either guess pessimistically or stop. Answers go here, one per
+# test, each with the reason and where the answer came from, so they can be
+# checked again when the toolchain or TeX Live changes.
+#
+# scripts/build-texlive.sh points CONFIG_SITE at this file. Only set a cache
+# variable when a configure log shows the test needs an answer.
+
+# (No entries yet: the first cross-configure run decides what is needed.)
