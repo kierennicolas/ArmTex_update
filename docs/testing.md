@@ -80,7 +80,7 @@ Gate 2 checks that kpathsea, cross-compiled from TeX Live 2026, finds files in a
 
 ### The kit
 
-`TLKpse-<commit>.zip`, an artifact of the Build run named in the Gate 2 `needs-hardware-test` issue (from the `TeX Live cross build` job). It holds:
+`TLKpse-<commit>.zip`, an artifact of the Build run named in the Gate 2 `needs-hardware-test` issue ([#14](https://github.com/kierennicolas/ArmTex_update/issues/14)) (from the `TeX Live cross build` job). It holds:
 
 | Path in the kit | What it is |
 |---|---|
@@ -94,7 +94,7 @@ This is the layout TeX Live uses on other systems: the program sits two levels b
 
 ### Steps
 
-1. Download, copy and extract the kit as for Gate 1 (steps 1 to 4 of Gate 1), using `TLKpse` in place of `TLTest`. Check that `RunKpse` is an Obey file and `bin.riscos.kpsewhich` is Absolute.
+1. Download, copy and extract the kit as for Gate 1 (steps 1 to 4 of Gate 1), using `TLKpse` in place of `TLTest`. Check that `RunKpse` is an Obey file and `bin.riscos.kpsewhich` is Absolute. Note the RISC OS version that `*FX 0` reports.
 2. Double-click `RunKpse`. It saves its output in `Results` in the `TLKpse` directory.
 3. Copy the whole `TLKpse` directory to a different place, for example the RAM disc or another directory on the hard disc. Run `RunKpse` in the copy and keep that `Results` too.
 4. If it stops with an error, note the message, then press F12, type `Spool` and press Return.

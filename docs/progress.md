@@ -49,7 +49,7 @@ Reference CI runs: [39670666067](https://github.com/kierennicolas/ArmTex_update/
 
 ## Next priorities
 
-1. Gate 1 ([#3](https://github.com/kierennicolas/ArmTex_update/issues/3)) and Gate 2: waiting for the maintainer's reports on Titanium.
+1. Gate 1 ([#3](https://github.com/kierennicolas/ArmTex_update/issues/3)) and Gate 2 ([#14](https://github.com/kierennicolas/ArmTex_update/issues/14)): waiting for the maintainer's reports on Titanium.
 2. Milestone 3 host-side preparation: choose and pin the support-file snapshot, generate formats with the host pdfTeX, and package a pdfTeX kit for the emulator.
 3. Milestone 6 ([#8](https://github.com/kierennicolas/ArmTex_update/issues/8)): supply configure's C++11 answer for graphite2 and HarfBuzz in `config.site`, to find out whether the libraries themselves compile with GCC 4.7.
 4. Look for a C++17-capable RISC OS compiler (the GCC 8 and 10 work mentioned in community sources) before Milestone 7 ([#9](https://github.com/kierennicolas/ArmTex_update/issues/9)).
