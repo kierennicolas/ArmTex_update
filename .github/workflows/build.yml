@@ -326,8 +326,12 @@ jobs:
             jq -r '.components[] | select(.kind == "probe" and .status != "built") | "\(.name) \(.status) \(.log)"' tl-out/results.json |
               while read -r name status log; do
                 echo "===== $name: $status ====="
+                # configure's own error, and the compiler's errors on its test
+                # programs (the program text in between is long and left out).
                 grep -m 4 -E 'configure:[0-9]*: error' "tl-out/$log" || true
-                grep -m 6 -B 3 -E 'configure:[0-9]*: result: no$' "tl-out/$log" | tail -n 12 || true
+                awk '/configure:[0-9]+: checking /{ check = $0; shown = 0; next }
+                     /conftest\.[a-z]+:[0-9]+(:[0-9]+)?: (error|sorry)/{ if (!shown) { print check; shown = 1 } print }' \
+                  "tl-out/$log" | tail -n 14
                 grep -m 8 -E 'undefined reference|ld: |Error [0-9]+' "tl-out/$log" || true
                 tail -n 6 "tl-out/$log"
               done > tl-logs/probe-failures.txt
