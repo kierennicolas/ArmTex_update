@@ -286,7 +286,12 @@ jobs:
         if: always()
         run: |
           if [ -f tl-out/emulator/output.txt ]; then
-            scripts/ci-annotate.sh notice "Gate 2 kit in the emulator (Pyromaniac; indicative only)" tl-out/emulator/output.txt 120
+            # kpsewhich's -debug output is long; annotate it separately, keeping
+            # only the lines about the search itself.
+            grep -v 'kdebug:' tl-out/emulator/output.txt > tl-logs/emulator-main.txt || true
+            grep -E 'kdebug:(kpse_find_file|db:match|returning|start generic)' tl-out/emulator/output.txt > tl-logs/emulator-debug.txt || true
+            scripts/ci-annotate.sh notice "Gate 2 kit in the emulator (Pyromaniac; indicative only)" tl-logs/emulator-main.txt 120
+            scripts/ci-annotate.sh notice "Gate 2 kit in the emulator, search details" tl-logs/emulator-debug.txt 40
           elif [ -f tl-logs/emulator.log ]; then
             scripts/ci-annotate.sh notice "Gate 2 kit emulator step output" tl-logs/emulator.log 40
           fi
@@ -295,15 +300,15 @@ jobs:
             cat tl-logs/summary.md >> "$GITHUB_STEP_SUMMARY"
             scripts/ci-annotate.sh notice "TeX Live cross build results" tl-logs/summary.md 120
             # The end of each failed required component's log.
-            jq -r '.components[] | select(.kind == "required" and .status != "built") | .log' tl-out/results.json |
-              head -n 6 | while read -r log; do
+            jq -r '[.components[] | select(.kind == "required" and .status != "built") | .log][:6][]' tl-out/results.json |
+              while read -r log; do
                 scripts/ci-annotate.sh error "$(basename "$log") (required component), last lines" "tl-out/$log" 40
               done
             # The end of each failed probe's log, collected into one note.
             jq -r '.components[] | select(.kind == "probe" and .status != "built") | "\(.name) \(.status) \(.log)"' tl-out/results.json |
               while read -r name status log; do
                 echo "===== $name: $status ====="
-                grep -E 'configure: error|error:|undefined reference|Error [0-9]+' "tl-out/$log" | head -n 8
+                grep -m 8 -E 'configure: error|error:|undefined reference|Error [0-9]+' "tl-out/$log" || true
                 tail -n 6 "tl-out/$log"
               done > tl-logs/probe-failures.txt
             if [ -s tl-logs/probe-failures.txt ]; then
