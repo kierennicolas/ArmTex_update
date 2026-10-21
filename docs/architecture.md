@@ -86,6 +86,18 @@ Each of these cost a CI run to find; the fix is in the scripts.
 - `SELFAUTOLOC`, `SELFAUTOPARENT` and `TEXMFDIST` come out right, as Unix-style paths, so kpathsea's self-location works under UnixLib and TeX Live's own `texmf.cnf` needs no changes.
 - Looking for its `ls-R` database, kpathsea finds both `ls-r` and `ls-R`, because RISC OS filing systems ignore case. It reads the same file twice; harmless, but worth knowing if lookups ever look duplicated.
 
+## The texmf tree and formats (Milestone 3)
+
+`scripts/build-texmf-tree.sh` does on the build machine what install-tl does after unpacking packages, with TeX Live's own code wherever TeX Live has it:
+
+1. Resolve scheme-basic's packages from the pinned database and unpack their containers. A relocatable package's container holds its files relative to `texmf-dist` (the database's file list writes them as `RELOC/...`); its `tlpkg/tlpobj` entry belongs at the root. Write the installation's `tlpkg/texlive.tlpdb` from the same records.
+2. `scripts/lib/tl-postinstall.pl` calls TeX Live's `TLUtils::create_language_dat`, `_def`, `_lua`, `create_fmtutil` and `create_updmap`, from the tree's own `texlive.infra`, so `language.dat`, `fmtutil.cnf` and `updmap.cfg` are what install-tl would write.
+3. Run the tree's `mktexlsr`, `updmap-sys` and `fmtutil-sys` with the host kpsewhich and pdfTeX copied into `bin/host/`, so kpathsea finds the tree from them exactly as an installation's binaries would.
+
+**Formats.** The default in `CLAUDE.md` is formats made on the build machine. The emulator results support it so far: the RISC OS pdfTeX loads the host-made `pdftex` and `pdflatex` formats and produces the same PDFs as the host, apart from `/ID`. Gate 3 decides it on hardware. The risk noted in Milestone 1 (soft-float `double` in FPA word order) has not shown up in the output. Glue ratios, kept in boxes stored in a format, are the floating-point values a format can hold; these formats probably hold none that are non-zero, but that is an inference from the identical PDFs, not a check of the format files.
+
+**Reproducible PDFs.** The test documents are compiled with `SOURCE_DATE_EPOCH` and `FORCE_SOURCE_DATE=1`, on the host and in the kits, so dates match. pdfTeX's `/ID` hashes the working directory and output file name as well as the date, so it differs between machines; comparisons blank it.
+
 ## Executables
 
 The default (to be confirmed at Gate 1): programs are linked statically with UnixLib and converted from ELF to AIF (filetype &FF8) with GCCSDK's `elf2aif`.

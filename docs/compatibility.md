@@ -29,6 +29,8 @@ As listed in [`CLAUDE.md`](../CLAUDE.md#out-of-scope-unless-the-maintainer-agree
 | kpsewhich 6.4.2 (soft-float) in the Gate 2 kit | Finds `texmf.cnf`, `article.cls`, `plain.tex`, `cmr10.tfm` and `cmr10.pfb` through `ls-R`. `SELFAUTOLOC`, `SELFAUTOPARENT` and `TEXMFDIST` are Unix-style paths below the kit (`/work/bin/riscos`, `/work`, `/work/texmf-dist`) | [39670666067](https://github.com/kierennicolas/ArmTex_update/actions/runs/39670666067), emulator annotations |
 | Case of `ls-R` | kpathsea looks for `ls-r` and `ls-R`; on a case-insensitive filing system both name the same file, which it then reads twice | Same run, search details |
 
+| pdfTeX 1.40.29 (soft-float) with formats made on the build machine | Loads the `pdftex` and `pdflatex` formats and typesets `storytest.tex` and `test.tex`; both PDFs are identical to the build machine's apart from `/ID`. So far the FPA word order of `double` makes no difference to these formats | [39693205158](https://github.com/kierennicolas/ArmTex_update/actions/runs/39693205158), annotation "Emulator PDFs against the host's" |
+
 ## Measured on hardware
 
 Nothing yet. Gate 1 will add the floating-point, unaligned-access and filename-translation results here.

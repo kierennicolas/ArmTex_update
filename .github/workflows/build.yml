@@ -194,15 +194,18 @@ jobs:
           if-no-files-found: warn
 
   # The pinned support files (macros, fonts, configuration) from the TeX Live
-  # 2026 image. For Milestone 2 this checks the pins and takes a few packages;
-  # Milestone 3 builds a texmf tree from them. The packages are cached, so the
+  # 2026 image: the packages of scheme-basic, checked against every pin. The
+  # TeX Live job builds a tree from them. The packages are cached, so the
   # 6.3 GB image is only downloaded when the pins or the package list change.
   support-files:
     name: Support files
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    outputs:
+      cache-key: ${{ steps.key.outputs.key }}
     env:
-      PACKAGES: plain latex cm amsfonts
+      # With every package they depend on.
+      PACKAGES: scheme-basic
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -265,8 +268,10 @@ jobs:
           scripts/ci-annotate.sh "$level" "Support files" sf-logs/fetch-short.log 60
 
   texlive:
-    name: TeX Live cross build (Milestone 2)
-    needs: toolchain
+    name: TeX Live cross build
+    needs: [toolchain, support-files]
+    # The cross build does not need the support files; only the tree does.
+    if: always() && needs.toolchain.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:
@@ -375,6 +380,66 @@ jobs:
           archive: false
           if-no-files-found: error
 
+      # Milestone 3: the texmf tree, font maps and formats, made on the host
+      # with the host tools and TeX Live's own scripts.
+      - name: Restore the support files
+        id: sf
+        if: always() && steps.hosttools.outcome != 'failure' && needs.support-files.result == 'success'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: sf
+          key: ${{ needs.support-files.outputs.cache-key }}
+          fail-on-cache-miss: true
+
+      - name: Build the texmf tree and formats
+        id: tree
+        if: always() && steps.sf.outcome == 'success'
+        run: scripts/build-texmf-tree.sh sf host-tools tl-tree 2>&1 | tee tl-logs/texmf-tree.log
+
+      - name: Compile the test documents on the host
+        id: docs
+        if: always() && steps.tree.outcome == 'success'
+        run: scripts/test-documents.sh tl-tree tl-docs 2>&1 | tee tl-logs/test-documents.log
+
+      - name: Package the pdfTeX kits
+        id: pdftexkit
+        if: always() && steps.docs.outcome == 'success' && hashFiles('tl-out/aif/pdftex,ff8') != ''
+        env:
+          BUILD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          scripts/package-pdftex-kit.sh tl-out tl-tree tl-docs emulator 2>&1 | tee tl-logs/package-pdftex-kit.log
+          scripts/package-pdftex-kit.sh tl-out tl-tree tl-docs full 2>&1 | tee -a tl-logs/package-pdftex-kit.log
+          name="TLPdfTeX-${BUILD_COMMIT:0:12}.zip"
+          cp tl-out/TLPdfTeX.zip "tl-out/$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      # Indicative only: RISC OS Pyromaniac, not RISC OS 5.30. It does test
+      # whether formats made on the build machine load in the RISC OS build.
+      - name: Emulator run of the pdfTeX kit
+        id: pdftexemu
+        if: always() && steps.pdftexkit.outcome == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        continue-on-error: true
+        timeout-minutes: 15
+        env:
+          ROBUILD_ARTIFACT: Out
+          ROBUILD_TIMEOUT: "600"
+        run: |
+          scripts/run-emulator.sh tl-out/kit/TLPdfTeXmini tl-out/pdftex-emulator-commands.txt tl-out/pdftex-emulator 2>&1 | tee tl-logs/pdftex-emulator.log
+
+      - name: Compare the emulator's PDFs with the host's
+        id: comparepdf
+        if: always() && steps.pdftexemu.outcome == 'success'
+        continue-on-error: true
+        run: scripts/compare-emulator-pdfs.sh tl-out/pdftex-emulator tl-docs 2>&1 | tee tl-logs/compare-pdfs.log
+
+      - name: Upload the pdfTeX kit
+        if: always() && steps.pdftexkit.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: tl-out/${{ steps.pdftexkit.outputs.name }}
+          archive: false
+          if-no-files-found: error
+
       - name: Job summary and annotations
         if: always()
         run: |
@@ -426,6 +491,36 @@ jobs:
             fi
           done
 
+      # Separate from the step above: GitHub keeps only ten annotations of
+      # each level per step.
+      - name: Milestone 3 annotations
+        if: always()
+        run: |
+          if [ -f tl-tree/tree.json ]; then
+            grep -E '^[0-9]+ packages' tl-logs/texmf-tree.log > tl-logs/texmf-tree-summary.txt || true
+            scripts/ci-annotate.sh notice "texmf tree and formats" tl-logs/texmf-tree-summary.txt 5
+          fi
+          if [ "${{ steps.tree.outcome }}" = failure ]; then
+            scripts/ci-annotate.sh error "texmf tree and formats, last lines" tl-logs/texmf-tree.log 60
+          fi
+          if [ -f tl-logs/test-documents.log ]; then
+            level=notice
+            if [ "${{ steps.docs.outcome }}" = failure ]; then level=error; fi
+            scripts/ci-annotate.sh "$level" "Test documents on the host" tl-logs/test-documents.log 60
+          fi
+          if [ -f tl-logs/package-pdftex-kit.log ]; then
+            grep -E '^pdfTeX kit|error|^RISC OS name check|^WARNING' tl-logs/package-pdftex-kit.log | head -n 60 > tl-logs/pdftex-kit-summary.txt || true
+            scripts/ci-annotate.sh notice "pdfTeX kits" tl-logs/pdftex-kit-summary.txt 60
+          fi
+          if [ -f tl-logs/compare-pdfs.log ]; then
+            scripts/ci-annotate.sh notice "Emulator PDFs against the host's" tl-logs/compare-pdfs.log 40
+          fi
+          if [ -f tl-out/pdftex-emulator/output.txt ]; then
+            scripts/ci-annotate.sh notice "pdfTeX kit in the emulator (Pyromaniac; indicative only)" tl-out/pdftex-emulator/output.txt 200
+          elif [ -f tl-logs/pdftex-emulator.log ]; then
+            scripts/ci-annotate.sh notice "pdfTeX emulator step output" tl-logs/pdftex-emulator.log 60
+          fi
+
       - name: Upload TeX Live build record
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -437,6 +532,13 @@ jobs:
             tl-logs/
             host-tools/host-tools.json
             host-tools/logs/
-            tl-out/kit/
+            tl-out/kit/TLKpse/
+            tl-out/kit/*-files.txt
             tl-out/emulator/output.txt
+            tl-tree/tree.json
+            tl-tree/logs/
+            tl-docs/
+            tl-out/pdftex-emulator/output.txt
+            tl-out/pdftex-emulator/result,*
+            tl-out/pdftex-emulator/pdf/
           if-no-files-found: warn
