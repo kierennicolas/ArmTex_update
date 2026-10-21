@@ -509,8 +509,8 @@ jobs:
             scripts/ci-annotate.sh "$level" "Test documents on the host" tl-logs/test-documents.log 60
           fi
           if [ -f tl-logs/package-pdftex-kit.log ]; then
-            grep -E '^pdfTeX kit|error' tl-logs/package-pdftex-kit.log > tl-logs/pdftex-kit-summary.txt || true
-            scripts/ci-annotate.sh notice "pdfTeX kits" tl-logs/pdftex-kit-summary.txt 10
+            grep -E '^pdfTeX kit|error|^RISC OS name check|^WARNING' tl-logs/package-pdftex-kit.log | head -n 60 > tl-logs/pdftex-kit-summary.txt || true
+            scripts/ci-annotate.sh notice "pdfTeX kits" tl-logs/pdftex-kit-summary.txt 60
           fi
           if [ -f tl-logs/compare-pdfs.log ]; then
             scripts/ci-annotate.sh notice "Emulator PDFs against the host's" tl-logs/compare-pdfs.log 40
