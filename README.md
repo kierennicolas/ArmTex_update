@@ -10,6 +10,12 @@ A native RISC OS port of TeX Live 2026, aimed at the Elesar Titanium running RIS
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) | Standing rules for development, including the status levels used throughout the project |
 | [`docs/roadmap.md`](docs/roadmap.md) | Milestones, hardware gates, acceptance criteria and open decisions |
+| [`docs/progress.md`](docs/progress.md) | Current state of each component |
+| [`docs/architecture.md`](docs/architecture.md) | How the port is built, and the decision records |
+| [`docs/building.md`](docs/building.md) | CI workflows, the toolchain image, and reproducing builds |
+| [`docs/testing.md`](docs/testing.md) | CI tests, the emulator evaluation, and hardware gate procedures |
+| [`docs/installation.md`](docs/installation.md) | Runtime requirements |
+| [`docs/compatibility.md`](docs/compatibility.md) | Known limitations and measured behaviour |
 | [`docs/issues/milestone-1.md`](docs/issues/milestone-1.md) | Text of the Milestone 1 issue |
 
 ## Priorities

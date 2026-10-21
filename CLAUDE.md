@@ -66,7 +66,7 @@ Steps marked **GATE** in `docs/roadmap.md` need execution on real hardware. At a
 
 ### CI and security
 
-- Jobs must fit within GitHub-hosted runner limits. Normal builds pull the cached toolchain image; they never rebuild GCCSDK.
+- Jobs must fit within GitHub-hosted runner limits. Normal builds reuse the cached toolchain image; GCCSDK is rebuilt only when its pins or build recipe change, which gives the image a new tag.
 - Pin third-party actions to commit SHAs. Give every workflow the minimum `permissions:`.
 - Never use `pull_request_target` to run contributor code, and never expose secrets to untrusted pull requests.
 - Never run RISC OS binaries on the Linux host as if they were Linux programs.
@@ -85,7 +85,7 @@ Steps marked **GATE** in `docs/roadmap.md` need execution on real hardware. At a
 
 These are the current defaults. Open decisions, and the milestone that settles each one, are listed in `docs/roadmap.md`. When a decision is made, record it in `docs/architecture.md` and update this section.
 
-- **Filetypes in the repository** use the `,xxx` suffix (`!Run,feb`, `pdftex,ff8`). Packaging uses a RISC OS-aware zip so filetypes survive. GitHub re-zips artifacts on download, so the RISC OS archive goes *inside* the artifact.
+- **Filetypes in the repository** use the `,xxx` suffix (`!Run,feb`, `pdftex,ff8`). Packaging uses `riscos/packaging/rozip.py`, which records filetypes in the zip so they survive. Upload RISC OS zips as artifacts with `archive: false`, so GitHub does not wrap them in a second zip.
 - **Executables** are statically linked and converted to AIF (filetype &FF8) with `elf2aif`, unless Milestone 1 finds a better option. Record any runtime modules the binaries need (UnixLib programs normally need SharedUnixLibrary) in `docs/installation.md`.
 - **Filenames** (default, confirmed or replaced in Milestone 2): the texmf tree is stored with UnixLib's suffix-directory swapping turned off, so `article.cls` becomes `article/cls`. Lookups rely on kpathsea's `ls-R` database.
 - **Formats** (default, confirmed or replaced in Milestone 3): `.fmt` files are generated on the host by a host pdfTeX built from the identical pinned source and configuration, relying on Web2c's default architecture-independent format files. If a host-built format fails to load on RISC OS, generate formats natively.
@@ -100,13 +100,19 @@ Document these as known limitations and do not spend time on them: xindy (needs 
 
 Created as the milestones need them. Keep this table current.
 
-| Script | Purpose |
-|---|---|
-| `scripts/fetch-upstream.sh` | Fetch pinned inputs and verify checksums |
-| `scripts/build-toolchain.sh` | Build the GCCSDK toolchain image (run rarely, by a manual workflow) |
-| `scripts/build-host-tools.sh` | Native host build: tangle, ctangle, otangle, tie, kpsewhich, host pdfTeX |
-| `scripts/build-texlive.sh` | Cross-build the enabled TeX Live components |
-| `scripts/check-binaries.sh` | Check that outputs are correctly targeted RISC OS executables |
-| `scripts/test-build.sh` | Host-side tests and output validation |
-| `scripts/validate-pdf.sh` | Check a PDF produced on hardware against a host-produced reference |
-| `scripts/package-release.sh` | Build the `!TeXLive` archive with filetypes preserved |
+| Script | Purpose | Status |
+|---|---|---|
+| `scripts/toolchain-image.sh` | Compute the toolchain image tag from the pins and build recipe | M1 |
+| `scripts/build-toolchain.sh` | Build GCCSDK at the pinned revision and pack it for the toolchain image (run by `toolchain.yml`) | M1 |
+| `scripts/build-toolchain-tests.sh` | Build the Milestone 1 test programs and C++ probes; write `results.json` | M1 |
+| `scripts/check-binaries.sh` | Check that outputs are correctly targeted RISC OS executables (uses `scripts/lib/aifcheck.py`) | M1 |
+| `scripts/package-testkit.sh` | Package the Gate 1 test kit as a RISC OS zip | M1 |
+| `scripts/summarise-results.sh` | Markdown summary of `results.json` for the CI job summary | M1 |
+| `scripts/run-emulator.sh` | Run the test kit on build.riscos.online (Emulator-tested at most) | M1 |
+| `scripts/ci-annotate.sh` | Copy the end of a log into GitHub annotations, which are readable without the full job log | M1 |
+| `scripts/fetch-upstream.sh` | Fetch pinned inputs and verify checksums | Planned |
+| `scripts/build-host-tools.sh` | Native host build: tangle, ctangle, otangle, tie, kpsewhich, host pdfTeX | Planned |
+| `scripts/build-texlive.sh` | Cross-build the enabled TeX Live components | Planned |
+| `scripts/test-build.sh` | Host-side tests and output validation | Planned |
+| `scripts/validate-pdf.sh` | Check a PDF produced on hardware against a host-produced reference | Planned |
+| `scripts/package-release.sh` | Build the `!TeXLive` archive with filetypes preserved | Planned |
