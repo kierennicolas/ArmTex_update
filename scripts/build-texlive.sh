@@ -35,7 +35,7 @@ src=$(cd "$1" && pwd)
 hosttools=$(cd "$2" && pwd)
 mkdir -p "$3"
 out=$(cd "$3" && pwd)
-rm -rf "${out:?}/build" "${out:?}/logs" "${out:?}/bin" "${out:?}/aif"
+rm -rf "${out:?}/build" "${out:?}/logs" "${out:?}/bin" "${out:?}/aif" "${out:?}/wrappers"
 mkdir -p "$out/build" "$out/logs" "$out/bin" "$out/aif"
 
 target=arm-unknown-riscos
@@ -55,9 +55,22 @@ revision=$(git -c safe.directory='*' -C "$src" rev-parse HEAD)
 build_triplet=$("$src/build-aux/config.guess")
 jobs=$(nproc)
 
-# Host tools first on PATH, so configure finds tangle and friends for the
-# build machine rather than trying to run cross-compiled ones.
-export PATH="$hosttools/bin:$PATH"
+# Compiler wrappers that always link statically. GCCSDK links against shared
+# libraries by default, and putting -static in CC or LDFLAGS is not enough:
+# kpsewhich, linked through libtool, still came out dynamically linked. A
+# wrapper is invisible to libtool, so -static always reaches the compiler.
+wrappers="$out/wrappers"
+mkdir -p "$wrappers"
+for tool in gcc g++; do
+  real=$(command -v "$target-$tool")
+  printf '#!/bin/sh\n# Written by scripts/build-texlive.sh: always link statically.\nexec %s -static "$@"\n' \
+    "$real" > "$wrappers/$target-$tool"
+  chmod +x "$wrappers/$target-$tool"
+done
+
+# Wrappers first, then host tools, so configure finds tangle and friends for
+# the build machine rather than trying to run cross-compiled ones.
+export PATH="$wrappers:$hosttools/bin:$PATH"
 # Answers for configure tests that cannot run when cross-compiling.
 export CONFIG_SITE="$root/riscos/compatibility/config.site"
 
@@ -73,12 +86,10 @@ configure_args=(
   --enable-missing
   --disable-shared
   --disable-native-texlive-build
-  # -static: GCCSDK links against shared libraries by default, and libtool
-  # drops -static from LDFLAGS, so it goes in the compiler command itself.
-  # -std=gnu++11: GCC 4.7 defaults to C++98, and the C++ libraries (xpdf,
-  # HarfBuzz, graphite2) need C++11.
-  CC="$target-gcc -static"
-  CXX="$target-g++ -static -std=gnu++11"
+  # The static-linking wrappers above. -std=gnu++11: GCC 4.7 defaults to
+  # C++98, and the C++ libraries (xpdf, HarfBuzz, graphite2) need C++11.
+  CC="$target-gcc"
+  CXX="$target-g++ -std=gnu++11"
   AR="$target-ar"
   RANLIB="$target-ranlib"
   STRIP="$target-strip"

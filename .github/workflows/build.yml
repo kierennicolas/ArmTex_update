@@ -299,6 +299,16 @@ jobs:
               head -n 6 | while read -r log; do
                 scripts/ci-annotate.sh error "$(basename "$log") (required component), last lines" "tl-out/$log" 40
               done
+            # The end of each failed probe's log, collected into one note.
+            jq -r '.components[] | select(.kind == "probe" and .status != "built") | "\(.name) \(.status) \(.log)"' tl-out/results.json |
+              while read -r name status log; do
+                echo "===== $name: $status ====="
+                grep -E 'configure: error|error:|undefined reference|Error [0-9]+' "tl-out/$log" | head -n 8
+                tail -n 6 "tl-out/$log"
+              done > tl-logs/probe-failures.txt
+            if [ -s tl-logs/probe-failures.txt ]; then
+              scripts/ci-annotate.sh notice "Failed probes, first errors and last lines" tl-logs/probe-failures.txt 400
+            fi
           fi
           if [ "${{ steps.check.outcome }}" = failure ]; then
             scripts/ci-annotate.sh error "check-binaries output" tl-logs/check-binaries.log 40
