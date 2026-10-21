@@ -426,6 +426,12 @@ jobs:
         run: |
           scripts/run-emulator.sh tl-out/kit/TLPdfTeXmini tl-out/pdftex-emulator-commands.txt tl-out/pdftex-emulator 2>&1 | tee tl-logs/pdftex-emulator.log
 
+      - name: Compare the emulator's PDFs with the host's
+        id: comparepdf
+        if: always() && steps.pdftexemu.outcome == 'success'
+        continue-on-error: true
+        run: scripts/compare-emulator-pdfs.sh tl-out/pdftex-emulator tl-docs 2>&1 | tee tl-logs/compare-pdfs.log
+
       - name: Upload the pdfTeX kit
         if: always() && steps.pdftexkit.outcome == 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -506,6 +512,9 @@ jobs:
             grep -E '^pdfTeX kit|error' tl-logs/package-pdftex-kit.log > tl-logs/pdftex-kit-summary.txt || true
             scripts/ci-annotate.sh notice "pdfTeX kits" tl-logs/pdftex-kit-summary.txt 10
           fi
+          if [ -f tl-logs/compare-pdfs.log ]; then
+            scripts/ci-annotate.sh notice "Emulator PDFs against the host's" tl-logs/compare-pdfs.log 40
+          fi
           if [ -f tl-out/pdftex-emulator/output.txt ]; then
             scripts/ci-annotate.sh notice "pdfTeX kit in the emulator (Pyromaniac; indicative only)" tl-out/pdftex-emulator/output.txt 200
           elif [ -f tl-logs/pdftex-emulator.log ]; then
@@ -530,4 +539,5 @@ jobs:
             tl-docs/
             tl-out/pdftex-emulator/output.txt
             tl-out/pdftex-emulator/result,*
+            tl-out/pdftex-emulator/pdf/
           if-no-files-found: warn

@@ -112,3 +112,43 @@ This is the layout TeX Live uses on other systems: the program sits two levels b
 | The copy | the same results, with the copy's location |
 
 The CI job also runs the same queries under the emulator; see the job's annotations. That is indicative only.
+
+## Gate 3: pdfTeX on Titanium
+
+Gate 3 is the key test of Milestone 3: pdfTeX, cross-compiled from TeX Live 2026, typesets a plain TeX document and a LaTeX document on Titanium and writes valid PDFs. It also settles whether formats made on the build machine load on RISC OS.
+
+### The kit
+
+`TLPdfTeX-<commit>.zip`, an artifact of the Build run named in the Gate 3 `needs-hardware-test` issue (from the `TeX Live cross build` job). It holds:
+
+| Path in the kit | What it is |
+|---|---|
+| `bin.riscos.pdftex` | pdfTeX, soft-float, statically linked |
+| `bin.riscos.kpsewhich` | kpsewhich, for looking into problems |
+| `texmf-dist` | the scheme-basic tree from the TeX Live 2026 image |
+| `texmf-var` | what the build machine generated: the `pdftex` and `pdflatex` formats, font maps, hyphenation settings |
+| `Tests.storytest/tex` | plain TeX: Knuth's `story.tex` |
+| `Tests.test/tex` | the reference LaTeX document from the roadmap |
+| `RunTests` | Obey file that typesets both and saves `Results` |
+
+`RunTests` sets `SOURCE_DATE_EPOCH` and `FORCE_SOURCE_DATE`, so the PDFs carry fixed dates and can be compared byte for byte with the references made on the build machine. It runs `pdftex` for the plain TeX document and `pdftex -progname=pdflatex` for the LaTeX one, which loads the `pdflatex` format as running the program under the name `pdflatex` would.
+
+### Steps
+
+1. Download, copy and extract the kit as for Gate 1 (steps 1 to 4), using `TLPdfTeX` in place of `TLTest`. Check that `RunTests` is an Obey file and `bin.riscos.pdftex` is Absolute. The kit is large; extracting it takes a while.
+2. Note the RISC OS version that `*FX 0` reports.
+3. Double-click `RunTests`. It writes `storytest/pdf`, `storytest/log`, `test/pdf` and `test/log` in `Tests`, and its own output in `Results`.
+4. If it stops with an error, note the message, then press F12, type `Spool` and press Return.
+5. Open the two PDFs in a PDF viewer and say whether they look right.
+6. Report `Results`, the two PDFs and the two logs on the Gate 3 issue.
+
+### What the results should show
+
+| Item | Expected |
+|---|---|
+| `pdftex storytest.tex` | exit status 0; the log ends with `Output written on storytest.pdf (1 page, …)` |
+| `pdflatex test.tex` | exit status 0; the log ends with `Output written on test.pdf (1 page, …)` |
+| Each PDF | passes `scripts/validate-pdf.sh` against the reference of the same name in the run's `texlive-build-record` artifact (`tl-docs/`); ideally identical to it |
+| Each PDF, by eye | the short story in Computer Modern; the LaTeX page with a numbered section heading and two displayed equations |
+
+If pdfTeX stops while loading a format (a "fatal format file error", or a format "made by different executable version"), the host-made formats do not suit the RISC OS build; that is a result in itself and decides the format question for Milestone 3. Report the log.
