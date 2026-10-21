@@ -58,9 +58,7 @@ if ! make -j"$jobs" MAKEINFO=true > "$prefix/logs/make.log" 2>&1; then
   exit 1
 fi
 
-# One target per make: several goals in one parallel make can build web2c's
-# shared helper programs (fixwrites, splitup) twice at once, which failed in
-# CI on four cores.
+# One target per make, so a failure names the program that caused it.
 echo "Building tangle, ctangle, tie, otangle, pdftex and kpsewhich"
 for program in tangle ctangle tie otangle pdftex; do
   if ! make -j"$jobs" MAKEINFO=true -C texk/web2c "$program" \

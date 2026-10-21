@@ -225,16 +225,26 @@ jobs:
 
       - name: Restore host tools
         id: cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: host-tools
           key: ${{ steps.key.outputs.key }}
 
       - name: Build host tools
+        id: hosttools
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p tl-logs
           scripts/build-host-tools.sh upstream-src/texlive host-tools 2>&1 | tee tl-logs/host-tools.log
+
+      # Saved straight away rather than at the end of the job, so a failure
+      # later in the job does not throw the host tools away.
+      - name: Save host tools
+        if: steps.hosttools.outcome == 'success'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: host-tools
+          key: ${{ steps.key.outputs.key }}
 
       - name: Cross-build TeX Live components
         id: cross

@@ -33,8 +33,22 @@ case $input in
     ;;
 esac
 
+# A checkout writes files in no particular order, so a generated file (a
+# parser, an Info manual) can end up a fraction of a second older than its
+# source, and make then tries to regenerate it with bison or makeinfo, which
+# the build does not have. Giving every file the commit's timestamp makes
+# nothing look newer than anything else. Without this, TeX Live's web2c failed
+# intermittently trying to run bison on web2c-parser.y.
+normalise_timestamps() {
+  local stamp
+  stamp=$(git -c safe.directory='*' -C "$dest" log -1 --format=%ct)
+  find "$dest" -path "$dest/.git" -prune -o -exec touch -h -d "@$stamp" {} +
+  echo "$input: timestamps set to $(date -u -d "@$stamp" +%Y-%m-%dT%H:%M:%SZ)"
+}
+
 if [ -d "$dest/.git" ] && [ "$(git -c safe.directory='*' -C "$dest" rev-parse HEAD 2>/dev/null)" = "$revision" ]; then
   echo "$input: $dest is already at $revision"
+  normalise_timestamps
   exit 0
 fi
 
@@ -52,3 +66,4 @@ if [ "$have" != "$revision" ]; then
   exit 1
 fi
 echo "$input: fetched $repository at $revision"
+normalise_timestamps
