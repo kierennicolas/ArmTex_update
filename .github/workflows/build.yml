@@ -114,7 +114,7 @@ jobs:
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         continue-on-error: true
         timeout-minutes: 10
-        run: scripts/run-emulator.sh out 2>&1 | tee out-logs/emulator.log
+        run: scripts/run-emulator.sh out/kit/TLTest out/emulator-commands.txt out/emulator 2>&1 | tee out-logs/emulator.log
 
       - name: Job summary
         if: always()
@@ -255,9 +255,41 @@ jobs:
           fi
           { scripts/check-binaries.sh --elf "${elfs[@]}" && scripts/check-binaries.sh --aif "${aifs[@]}"; } 2>&1 | tee tl-logs/check-binaries.log
 
+      - name: Package the Gate 2 kit
+        id: kpsekit
+        if: always() && hashFiles('tl-out/aif/kpsewhich,ff8') != ''
+        env:
+          BUILD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          scripts/package-kpse-kit.sh upstream-src/texlive tl-out 2>&1 | tee tl-logs/package-kpse-kit.log
+          name="TLKpse-${BUILD_COMMIT:0:12}.zip"
+          cp tl-out/TLKpse.zip "tl-out/$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      # Indicative only: RISC OS Pyromaniac, not RISC OS 5.30.
+      - name: Emulator run of the Gate 2 kit
+        if: always() && steps.kpsekit.outcome == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          scripts/run-emulator.sh tl-out/kit/TLKpse tl-out/kpse-emulator-commands.txt tl-out/emulator 2>&1 | tee tl-logs/emulator.log
+
+      - name: Upload the Gate 2 kit
+        if: always() && steps.kpsekit.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: tl-out/${{ steps.kpsekit.outputs.name }}
+          archive: false
+          if-no-files-found: error
+
       - name: Job summary and annotations
         if: always()
         run: |
+          if [ -f tl-out/emulator/output.txt ]; then
+            scripts/ci-annotate.sh notice "Gate 2 kit in the emulator (Pyromaniac; indicative only)" tl-out/emulator/output.txt 120
+          elif [ -f tl-logs/emulator.log ]; then
+            scripts/ci-annotate.sh notice "Gate 2 kit emulator step output" tl-logs/emulator.log 40
+          fi
           if [ -f tl-out/results.json ]; then
             scripts/summarise-texlive.sh tl-out > tl-logs/summary.md
             cat tl-logs/summary.md >> "$GITHUB_STEP_SUMMARY"
@@ -288,4 +320,6 @@ jobs:
             tl-logs/
             host-tools/host-tools.json
             host-tools/logs/
+            tl-out/kit/
+            tl-out/emulator/output.txt
           if-no-files-found: warn
