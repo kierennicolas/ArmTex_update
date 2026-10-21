@@ -18,6 +18,12 @@
 # that returns a non-zero status or an error, so order the commands with that
 # in mind. Exits with the service's status. With ROBUILD_DRY_RUN=1 it prepares
 # the upload but neither downloads the client nor contacts the service.
+#
+# The service returns one file or directory from the kit after the commands
+# have run: ROBUILD_ARTIFACT names it, as a RISC OS path relative to the kit
+# (default: Commands, the commands file itself). It is saved as
+# <work-dir>/result,<filetype>. ROBUILD_TIMEOUT sets the time limit in seconds
+# (default 300).
 
 set -euo pipefail
 
@@ -32,7 +38,7 @@ commands=$2
 mkdir -p "$3"
 work=$(cd "$3" && pwd)
 
-rm -rf "${work:?}/stage" "$work/input.zip" "$work/output.txt"
+rm -rf "${work:?}/stage" "$work/input.zip" "$work/output.txt" "$work"/result,*
 mkdir -p "$work/stage"
 
 dry_run=${ROBUILD_DRY_RUN:-0}
@@ -91,7 +97,7 @@ YAML
   done < "$commands"
   echo '      - Echo ===== all commands ran ====='
   echo '    artifacts:'
-  echo '      - path: Commands'
+  printf '      - path: %s\n' "$(jq -Rn --arg v "${ROBUILD_ARTIFACT:-Commands}" '$v')"
 } > "$work/stage/.robuild.yaml"
 cat "$work/stage/.robuild.yaml"
 
@@ -101,7 +107,12 @@ if [ "$dry_run" = 1 ]; then
   echo "Dry run: prepared $work/input.zip; not contacting the service"
   exit 0
 fi
+rm -f "$work"/result,*
+echo "Uploading $(wc -c < "$work/input.zip") bytes"
 status=0
-"$client" -i "$work/input.zip" -t 300 -b "$work/output.txt" -o "$work/result" || status=$?
+"$client" -i "$work/input.zip" -t "${ROBUILD_TIMEOUT:-300}" -b "$work/output.txt" -o "$work/result" || status=$?
 echo "build.riscos.online finished with status $status"
+for result in "$work"/result,*; do
+  [ -e "$result" ] && echo "Returned: $(basename "$result"), $(wc -c < "$result") bytes"
+done
 exit "$status"

@@ -77,6 +77,27 @@ for p in "${packages[@]}"; do
 done
 step unpack python3 "$tl" unpack "$sf/archive" "$tree" "${with_files[@]}"
 python3 "$tl" subset "$db" "${packages[@]}" > "$tree/tlpkg/texlive.tlpdb"
+printf '%s\n' "${packages[@]}" > "$logs/packages.txt"
+
+# Files the later steps need. For any that is missing, say which package the
+# database puts it in, and whether that package is in the list.
+missing=0
+for need in tlpkg/TeXLive/TLUtils.pm texmf-dist/web2c/texmf.cnf texmf-dist/web2c/fmtutil-hdr.cnf \
+  texmf-dist/web2c/updmap-hdr.cfg texmf-dist/tex/generic/config/language.us \
+  texmf-dist/scripts/texlive/mktexlsr.pl texmf-dist/scripts/texlive/updmap.pl \
+  texmf-dist/scripts/texlive/fmtutil.pl; do
+  if [ ! -f "$tree/$need" ]; then
+    owner=$(awk -v f="$need" '/^name /{n=$2} $1 == f {print n}' "$db" | head -n 1)
+    if grep -qx "${owner:-none}" "$logs/packages.txt"; then where="which is in the list"; else where="which is not in the list"; fi
+    echo "error: the tree has no $need; the database puts it in package '${owner:-none}', $where" >&2
+    missing=$((missing + 1))
+  fi
+done
+if [ "$missing" -ne 0 ]; then
+  echo "Files under tex/generic/config in the tree:" >&2
+  find "$tree/texmf-dist/tex/generic/config" -maxdepth 1 -type f 2> /dev/null | sed "s#^$tree/##" >&2 || true
+  exit 1
+fi
 
 # The host programs go where TeX Live keeps binaries, two levels below the
 # root, so kpathsea finds the tree from them as it would in an installation.

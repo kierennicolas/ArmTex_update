@@ -33,7 +33,9 @@ require TeXLive::TLUtils;
 
 my $tlpdb = TeXLive::TLPDB->new(root => $root)
   or die "$0: cannot read $root/tlpkg/texlive.tlpdb\n";
-printf "%d packages in %s/tlpkg/texlive.tlpdb\n", scalar($tlpdb->list_packages), $root;
+my @installed = $tlpdb->list_packages;
+printf "%d packages in %s/tlpkg/texlive.tlpdb\n", scalar(@installed), $root;
+die "$0: no packages in $root/tlpkg/texlive.tlpdb\n" unless @installed;
 
 my $config = "$root/texmf-var/tex/generic/config";
 TeXLive::TLUtils::mkdirhier($config);

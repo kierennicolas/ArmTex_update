@@ -108,7 +108,7 @@ Created as the milestones need them. Keep this table current.
 | `scripts/check-binaries.sh` | Check that outputs are correctly targeted RISC OS executables (uses `scripts/lib/aifcheck.py`) | M1 |
 | `scripts/package-testkit.sh` | Package the Gate 1 test kit as a RISC OS zip | M1 |
 | `scripts/summarise-results.sh` | Markdown summary of `results.json` for the CI job summary | M1 |
-| `scripts/run-emulator.sh` | Run a kit's commands on build.riscos.online (Emulator-tested at most) | M1 |
+| `scripts/run-emulator.sh` | Run a kit's commands on build.riscos.online and fetch one result file or directory (Emulator-tested at most) | M1 |
 | `scripts/ci-annotate.sh` | Copy the end of a log into GitHub annotations, which are readable without the full job log | M1 |
 | `scripts/fetch-upstream.sh` | Fetch pinned inputs and verify them: the TeX Live source by commit; support files from the TL2026 image, checked by its pins and each package's SHA-512 (uses `scripts/lib/tlpdb.py` and `scripts/lib/iso9660.py`) | M2 |
 | `scripts/verify-iso-signature.sh` | Check that the pinned TL2026 image's SHA-512 is signed by TeX Live's key (CI runner only: needs gpg) | M2 |
@@ -118,6 +118,8 @@ Created as the milestones need them. Keep this table current.
 | `scripts/package-kpse-kit.sh` | Package the Gate 2 kit: cross-compiled kpsewhich with a small TeX Live-style tree | M2 |
 | `scripts/test-kpse-kit.sh` | Check the Gate 2 kit's tree and `ls-R` with the native kpsewhich, in place and moved | M2 |
 | `scripts/build-texmf-tree.sh` | Build the texmf tree from the support files, and its font maps and formats with the host tools and TeX Live's own scripts (uses `scripts/lib/tl-postinstall.pl`) | M3 |
+| `scripts/test-documents.sh` | Compile the test documents in `tests/documents` on the host: reference PDFs, logs and `-recorder` file lists | M3 |
+| `scripts/package-pdftex-kit.sh` | Package pdfTeX with the tree and test documents: the full kit for Gate 3, or a small one for the emulator | M3 |
 | `scripts/test-build.sh` | Host-side tests and output validation | Planned |
 | `scripts/validate-pdf.sh` | Check a PDF produced on hardware against a host-produced reference | Planned |
 | `scripts/package-release.sh` | Build the `!TeXLive` archive with filetypes preserved | Planned |
