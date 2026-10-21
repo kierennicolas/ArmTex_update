@@ -68,6 +68,7 @@ runfiles size=2
 name plain
 category Package
 revision 57963
+relocated 1
 depend collection-tiny
 containersize {len(PLAIN)}
 containerchecksum {sha512(PLAIN)}
@@ -126,6 +127,7 @@ class TlpdbTest(unittest.TestCase):
             "00texlive.config", "scheme-tiny", "collection-tiny", "latex", "plain", "nochecksum"})
         self.assertEqual(self.records["latex"]["depend"], ["plain", "latex.ARCH"])
         self.assertNotIn(" texmf-dist/tex/latex/base/article.cls", self.records["latex"])
+        self.assertNotIn("reloc-files", self.records["latex"])
 
     def test_config(self):
         settings = tlpdb.config(self.records)
@@ -239,10 +241,44 @@ class TlpdbTest(unittest.TestCase):
             archive.add(payload / "RELOC", arcname="RELOC")
             archive.add(payload / "tlpkg", arcname="tlpkg")
         tree = self.dir / "tree"
-        self.assertEqual(tlpdb.unpack(str(container), str(tree)), 2)
+        self.assertEqual(tlpdb.unpack(str(container), str(tree), False), 2)
         self.assertEqual((tree / "texmf-dist" / "tex" / "plain" / "base" / "plain.tex").read_text(), "\\dump\n")
         self.assertTrue((tree / "tlpkg" / "tlpobj" / "pkg.tlpobj").exists())
         self.assertFalse((tree / "RELOC").exists())
+
+    def test_unpack_relocatable_container(self):
+        # As TeX Live stores them: paths relative to texmf-dist, and the
+        # tlpobj, which belongs at the root, under tlpkg/.
+        import tarfile
+        container = self.dir / "hyphen-base.tar.xz"
+        with tarfile.open(container, "w:xz") as archive:
+            for name, data in (("tex/generic/config/language.us", b"us\n"),
+                               ("tlpkg/tlpobj/hyphen-base.tlpobj", b"name hyphen-base\n")):
+                info = tarfile.TarInfo(name)
+                info.size = len(data)
+                archive.addfile(info, io.BytesIO(data))
+        tree = self.dir / "tree"
+        self.assertEqual(tlpdb.unpack(str(container), str(tree), True), 2)
+        self.assertEqual((tree / "texmf-dist/tex/generic/config/language.us").read_bytes(), b"us\n")
+        self.assertTrue((tree / "tlpkg/tlpobj/hyphen-base.tlpobj").exists())
+        self.assertFalse((tree / "tex").exists())
+
+    def test_unpack_command_reads_relocation_from_the_database(self):
+        import tarfile
+        archive_dir = self.dir / "archive"
+        archive_dir.mkdir()
+        with tarfile.open(archive_dir / "plain.tar.xz", "w:xz") as archive:
+            info = tarfile.TarInfo("tex/plain/base/plain.tex")
+            info.size = 2
+            archive.addfile(info, io.BytesIO(b"x\n"))
+        status, out = self.run_main("unpack", str(self.db), str(archive_dir), str(self.dir / "tree"), "plain")
+        self.assertEqual(status, 0, out)
+        self.assertTrue((self.dir / "tree/texmf-dist/tex/plain/base/plain.tex").exists())
+
+    def test_relocation_from_the_file_list(self):
+        db = self.dir / "reloc.tlpdb"
+        db.write_text("name pkg\ncategory Package\nrunfiles size=1\n RELOC/tex/x/x.tex\n")
+        self.assertIn("reloc-files", tlpdb.parse(db)["pkg"])
 
     def test_unpack_handles_dot_slash_names(self):
         import tarfile
@@ -252,7 +288,7 @@ class TlpdbTest(unittest.TestCase):
             info.size = 3
             archive.addfile(info, io.BytesIO(b"us\n"))
         tree = self.dir / "tree"
-        self.assertEqual(tlpdb.unpack(str(container), str(tree)), 1)
+        self.assertEqual(tlpdb.unpack(str(container), str(tree), False), 1)
         self.assertEqual((tree / "texmf-dist/tex/generic/config/language.us").read_bytes(), b"us\n")
 
     def test_unpack_refuses_unsafe_paths(self):
@@ -263,7 +299,7 @@ class TlpdbTest(unittest.TestCase):
             info.size = 0
             archive.addfile(info, io.BytesIO(b""))
         with self.assertRaises(ValueError):
-            tlpdb.unpack(str(container), str(self.dir / "tree"))
+            tlpdb.unpack(str(container), str(self.dir / "tree"), True)
 
     def test_extract_from_a_real_image(self):
         with open(os.path.join(ROOT, "tests", "fixtures", "rockridge.iso.xz"), "rb") as handle:

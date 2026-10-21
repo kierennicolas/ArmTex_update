@@ -34,10 +34,10 @@ Usage:
     tlpdb.py subset TLPDB PKG...
         Print a database holding only the named packages (and the
         00texlive.config record), as an installation's tlpkg/texlive.tlpdb.
-    tlpdb.py unpack DIR TREE PKG...
-        Unpack DIR/PKG.tar.xz into the tree TREE for each PKG, putting
-        relocatable files (RELOC/...) under texmf-dist/. Exits 1 if a
-        container is missing.
+    tlpdb.py unpack TLPDB DIR TREE PKG...
+        Unpack DIR/PKG.tar.xz into the tree TREE for each PKG, putting a
+        relocatable package's files under texmf-dist/, as tlmgr does. Exits 1
+        if a container is missing.
     tlpdb.py members CONTAINER
         List what is in a package container, as stored.
     tlpdb.py check TLPDB DIR PKG...
@@ -77,7 +77,11 @@ def parse(path):
                 current = None
                 continue
             if line.startswith(" "):
-                continue  # a file in a file list
+                # A file in a file list; only whether it is relocatable
+                # (RELOC/...) is kept.
+                if current is not None and line.lstrip().startswith("RELOC/"):
+                    current["reloc-files"] = ["1"]
+                continue
             key, _, value = line.partition(" ")
             if key == "name":
                 current = {}
@@ -104,10 +108,13 @@ def raw_records(path):
     return records
 
 
-def unpack(container, tree):
-    """Unpack a package container into a TeX Live tree. Paths starting with
-    RELOC/ belong in texmf-dist/; the rest (tlpkg/, texmf-dist/, bin/) are
-    already relative to the tree's root. Returns the number of files."""
+def unpack(container, tree, relocated):
+    """Unpack a package container into a TeX Live tree; return the number of
+    files. A relocatable package ("relocated 1" in the database, RELOC/ in
+    its file list) stores its files relative to texmf-dist in the container,
+    apart from tlpkg/tlpobj/, which belongs at the tree's root; tlmgr
+    unpacks it the same way. Other packages' paths are relative to the root.
+    """
     import tarfile
 
     count = 0
@@ -119,6 +126,8 @@ def unpack(container, tree):
                 name = name[2:]
             if name == "RELOC" or name.startswith("RELOC/"):
                 name = "texmf-dist" + name[len("RELOC"):]
+            elif relocated and not (name == "tlpkg" or name.startswith("tlpkg/")):
+                name = "texmf-dist/" + name
             member.name = name
             parts = member.name.split("/")
             if member.name.startswith("/") or ".." in parts:
@@ -365,16 +374,19 @@ def main(argv):
         names += sorted(set(args[1:]) - {"00texlive.config"})
         sys.stdout.write("\n".join(raw[name] for name in names))
         return 0
-    if command == "unpack" and len(args) >= 3:
+    if command == "unpack" and len(args) >= 4:
+        records = parse(args[0])
         total = unpacked = 0
-        for name in args[2:]:
-            container = os.path.join(args[0], f"{name}.tar.xz")
-            if not os.path.exists(container):
-                print(f"error: {container} not found", file=sys.stderr)
+        for name in args[3:]:
+            container = os.path.join(args[1], f"{name}.tar.xz")
+            if name not in records or not os.path.exists(container):
+                print(f"error: {name}: not in the database, or {container} not found", file=sys.stderr)
                 return 1
-            total += unpack(container, args[1])
+            record = records[name]
+            relocated = first(record, "relocated", "0") == "1" or "reloc-files" in record
+            total += unpack(container, args[2], relocated)
             unpacked += 1
-        print(f"unpacked {unpacked} packages, {total} files, into {args[1]}")
+        print(f"unpacked {unpacked} packages, {total} files, into {args[2]}")
         return 0
     if command == "members" and len(args) == 1:
         import tarfile

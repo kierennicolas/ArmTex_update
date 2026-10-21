@@ -75,7 +75,7 @@ for p in "${packages[@]}"; do
     with_files+=("$p")
   fi
 done
-step unpack python3 "$tl" unpack "$sf/archive" "$tree" "${with_files[@]}"
+step unpack python3 "$tl" unpack "$db" "$sf/archive" "$tree" "${with_files[@]}"
 python3 "$tl" subset "$db" "${packages[@]}" > "$tree/tlpkg/texlive.tlpdb"
 printf '%s\n' "${packages[@]}" > "$logs/packages.txt"
 

@@ -121,5 +121,5 @@ Created as the milestones need them. Keep this table current.
 | `scripts/test-documents.sh` | Compile the test documents in `tests/documents` on the host: reference PDFs, logs and `-recorder` file lists | M3 |
 | `scripts/package-pdftex-kit.sh` | Package pdfTeX with the tree and test documents: the full kit for Gate 3, or a small one for the emulator | M3 |
 | `scripts/test-build.sh` | Host-side tests and output validation | Planned |
-| `scripts/validate-pdf.sh` | Check a PDF produced on hardware against a host-produced reference | Planned |
+| `scripts/validate-pdf.sh` | Check a PDF produced on RISC OS against the host-produced reference: identical, or the same structure, pages, fonts and text (needs qpdf and poppler-utils) | M3 |
 | `scripts/package-release.sh` | Build the `!TeXLive` archive with filetypes preserved | Planned |
