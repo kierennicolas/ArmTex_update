@@ -53,12 +53,13 @@ How the pin works:
 - `upstream/manifest.json` pins the image's size, SHA-256 and SHA-512, and the SHA-256 of the database inside it.
 - TeX Live publishes the image's SHA-512 in a file signed with its own key. `scripts/verify-iso-signature.sh` checks that signature against the key's fingerprint, also pinned, and that the signed value is the pinned one. It needs gpg, so it runs on the CI runner.
 - The database lists every package with the size and SHA-512 of its container, so the pins cover every support file.
-- `scripts/fetch-upstream.sh support-files <dir> [package...]` checks the image against its pins, takes the database and the named packages out of it with `scripts/lib/iso9660.py` (a small reader for ISO 9660 with Rock Ridge and Joliet names, so nothing is mounted), and checks each package against the database. The image is only downloaded when `<dir>` lacks something asked for; CI caches `<dir>`.
+- `scripts/fetch-upstream.sh support-files <dir> [package...]` takes the database and the named packages (with their dependencies) out of the image with `scripts/lib/iso9660.py`, a small reader for ISO 9660 with Rock Ridge and Joliet names, so nothing is mounted, and checks the database against its pin and each package against the database.
+- By default the image is **read in part** from a mirror, with HTTP range requests: only the directory entries, the database and the packages asked for are fetched (tens of MB, not 6.3 GB). The mirror must serve the image at its pinned size. Every byte used is checked, as above; what cannot be checked without downloading the whole image is the image's own SHA-256 and SHA-512, which is why the database has a pin of its own. `SUPPORT_ISO_MODE=full`, or a mirror without range support, downloads the whole image and checks every pin, as was done to establish them (run 39681279779). CI also caches `<dir>`, but caches are not shared between pull-request branches, so each new branch needed the whole image when only full downloads were possible.
 - `scripts/lib/tlpdb.py resolve` lists a package and everything it depends on, leaving out the per-platform binaries (`.ARCH`), which this project builds itself.
 
 The CI job `support-files` runs all of this on every build. Milestone 3 builds the texmf tree from these packages.
 
-**Why the image and not a dated tlnet snapshot.** `CLAUDE.md` allows either. The only archive of dated tlnet snapshots, at texlive.info, now answers automated downloads with a bot-check page instead of the file (an HTML page titled "Oh noes!", [CI job 119495856939](https://github.com/kierennicolas/ArmTex_update/actions/runs/39678137603/job/119495856939)), and getting round that would not be appropriate. The image is fixed, signed and mirrored across CTAN. Its cost, a 6.3 GB download whenever the package list changes, is acceptable because the extracted packages are cached.
+**Why the image and not a dated tlnet snapshot.** `CLAUDE.md` allows either. The only archive of dated tlnet snapshots, at texlive.info, now answers automated downloads with a bot-check page instead of the file (an HTML page titled "Oh noes!", [CI job 119495856939](https://github.com/kierennicolas/ArmTex_update/actions/runs/39678137603/job/119495856939)), and getting round that would not be appropriate. The image is fixed, signed and mirrored across CTAN. Its size (6.3 GB) does not matter much, since the build reads only the parts it needs (below).
 
 **When TeX Live 2027 is released** (about March 2027), CTAN's `Images` directory will switch to the 2027 image. The 2026 image stays available from TeX Live's historic archive (tug.org/historic); its URL then needs adding to the manifest, with the same pins.
 
@@ -141,6 +142,30 @@ RISC OS needs filetypes, which ordinary zip files do not carry. `riscos/packagin
 
 The test kit is uploaded with `archive: false`, so the artifact is the RISC OS zip itself rather than a zip wrapped in another zip.
 
+## The !TeXLive application (provisional layout)
+
+Milestone 3 settles the installation layout provisionally; Milestone 8 settles it finally, with the desktop front end and Choices.
+
+```
+!TeXLive
+  !Boot, !Run          Obey files: define the commands (below)
+  !Help                how to install and use it
+  Resources.Commands   the command definitions, run by !Boot and !Run
+  BuildInfo            commit, pins and formats of this build
+  LICENSE/TL, LICENSE/CTAN
+  bin.riscos           pdftex, kpsewhich (AIF)
+  texmf-dist           TeX Live's tree (scheme-basic), runfiles only
+  texmf-var            made on the build machine: formats, font maps, language files
+```
+
+- **Everything inside the application.** It is TeX Live's own layout, with `!TeXLive` as the installation's root: kpathsea works out `SELFAUTOPARENT` from the program's location, and TeX Live's `texmf.cnf` finds `texmf-dist` and `texmf-var` from there unchanged. Nothing depends on where `!TeXLive` is, and moving it needs no reconfiguration (Gate 2 tests this for kpsewhich).
+- **Commands.** `!Boot` (run by the Filer when it first sees the application) and `!Run` (a double-click) set `TeXLive$Dir` and the aliases `pdflatex`, `pdftex` and `kpsewhich`. Each alias runs a program in `bin.riscos`; `pdflatex` is `pdftex -progname=pdflatex`, which loads the `pdflatex` format as the program name would, so the program is not shipped twice. `!Boot` leaves the aliases alone if another copy set them up first; `!Run` always takes over.
+- **SharedUnixLibrary** is loaded by the programs' own start-up code when needed, so the aliases do not load it.
+- **Not yet decided (Milestone 8):** where a user's own tree (`TEXMFHOME`) and TeX Live's per-user files (`TEXMFVAR`, `TEXMFCONFIG`) go: Choices is the RISC OS place for them. For now they are TeX Live's defaults under `HOME`, which nothing in scheme-basic with pdfTeX writes to.
+- **Documentation** (TeX Live's `doc` containers) is left out to keep the download small.
+
+`scripts/package-release.sh` builds the application from `riscos/app/!TeXLive` (the Obey files and help), the cross-compiled programs and the tree, and packages it as `TeXLive-2026-dev-<commit>.zip`.
+
 ## Decision records
 
 | Decision | Status | Evidence |
@@ -150,6 +175,7 @@ The test kit is uploaded with `archive: false`, so the artifact is the RISC OS z
 | C++14 and C++17 | **Not supported**: the compiler rejects `-std=c++14`/`c++1y` and `-std=c++17`/`c++1z`. The bundled ICU (78.x) needs C++17, so XeTeX and bibtexu cannot be built with this compiler. Milestone 7 is blocked unless a newer compiler is found. | C++ probes, same run |
 | Floating-point variant | Open: decided from Gate 1 results. All variants build. | Gate 1 report |
 | Unaligned-access flags | Open: decided from Gate 1 results | Gate 1 report |
+| Installation layout | **Provisional (Milestone 3):** everything inside `!TeXLive`, laid out as a TeX Live installation, with commands defined by `!Boot` and `!Run`; see [the !TeXLive application](#the-texlive-application-provisional-layout). User trees and Choices are for Milestone 8. | [Run 39838947779](https://github.com/kierennicolas/ArmTex_update/actions/runs/39838947779): under the emulator the commands work and the PDFs match the host's apart from `/ID`. Hardware: not yet |
 | Emulator testing | **Useful for soft-float builds only.** With the toolchain's SharedUnixLibrary module (`cross/bin/arm-unknown-riscos-sul`) uploaded alongside, the soft-float test programs run and pass on build.riscos.online. VFP builds cannot run there: Pyromaniac has no VFPSupport module. | [39652781660](https://github.com/kierennicolas/ArmTex_update/actions/runs/39652781660) |
 
 ### What the emulator results mean

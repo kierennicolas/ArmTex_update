@@ -29,7 +29,7 @@ The maintainer reports each gate as a comment on its `needs-hardware-test` issue
 | Emulator testing | Whether build.riscos.online or Pyromaniac can run UnixLib binaries | M1 | Unknown |
 | Filename layout | Suffix swapping off (`article/cls`) or UnixLib suffix directories | M2 | Swapping off |
 | Format generation | Host-generated or native | M3 | Host |
-| Installation layout | Where binaries, texmf trees, user trees, caches and Choices live | M3 (provisional), M8 (final) | None |
+| Installation layout | Where binaries, texmf trees, user trees, caches and Choices live | M3 (provisional), M8 (final) | Everything inside `!TeXLive`, as a TeX Live installation (provisional; `architecture.md`) |
 | Perl tools | Host-side at packaging time, or a native Perl | M9 | Host |
 | Update mechanism | Replacement archives, or a native package tool | M9 | None |
 

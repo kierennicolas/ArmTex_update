@@ -1,0 +1,12 @@
+| TeX Live 2026 for RISC OS: the commands, run by !Boot and !Run.
+|
+| Each command runs a program in bin.riscos. The program finds the rest of
+| TeX Live from its own location (kpathsea's SELFAUTOPARENT is !TeXLive), so
+| nothing else needs setting. Running pdftex with -progname=pdflatex loads the
+| pdflatex format, as running it under the name pdflatex would.
+|
+| %%*0 becomes %*0 in each alias: the arguments given to the command. The
+| programs load SharedUnixLibrary themselves when they start.
+Set Alias$pdftex Run <TeXLive$Dir>.bin.riscos.pdftex %%*0
+Set Alias$pdflatex Run <TeXLive$Dir>.bin.riscos.pdftex -progname=pdflatex %%*0
+Set Alias$kpsewhich Run <TeXLive$Dir>.bin.riscos.kpsewhich %%*0

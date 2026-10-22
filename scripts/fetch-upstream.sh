@@ -18,12 +18,16 @@
 #                    size and SHA-512 the database gives. Name a scheme
 #                    (scheme-basic) to get a whole installation's packages.
 #
-#                    The image (6.3 GB) is downloaded only when <dest-dir>
-#                    does not already hold everything asked for, into
-#                    $SUPPORT_ISO_DIR (default <dest-dir>/.iso), and checked
-#                    against its SHA-256 and SHA-512 pins. It is deleted
-#                    afterwards unless KEEP_ISO=1. While a pin is empty, the
-#                    values found are printed and the script fails at the end,
+#                    Nothing is fetched when <dest-dir> already holds
+#                    everything asked for. Otherwise, by default, only the
+#                    parts needed are read from a mirror with HTTP range
+#                    requests (SUPPORT_ISO_MODE=ranged). With
+#                    SUPPORT_ISO_MODE=full, or when no mirror serves ranges,
+#                    the whole image (6.3 GB) is downloaded into
+#                    $SUPPORT_ISO_DIR (default <dest-dir>/.iso) and checked
+#                    against its SHA-256 and SHA-512 pins; it is deleted
+#                    afterwards unless KEEP_ISO=1. While a pin is empty, a
+#                    full run prints the values found and fails at the end,
 #                    so that a new image can be pinned from one run.
 #
 # Exits 1 if anything differs from its pin.
@@ -70,6 +74,47 @@ fetch_support_files() {
   local isodir=${SUPPORT_ISO_DIR:-$dest/.iso}
   local iso="$isodir/$file" have_size have_sha256 have_sha512 url
   mkdir -p "$isodir" "$dest/tlpkg"
+
+  # Read in part: only the database and the packages asked for are fetched,
+  # with HTTP range requests, from the first mirror that serves the image at
+  # its pinned size. Every byte used is still checked: the database against
+  # its SHA-256 pin and each package against the database's SHA-512. The
+  # whole-image checksums cannot be computed without the whole image, so
+  # they are left to a full run (SUPPORT_ISO_MODE=full) and to
+  # verify-iso-signature.sh, which ties the SHA-512 pin to TeX Live's key.
+  if [ "${SUPPORT_ISO_MODE:-ranged}" = ranged ] && [ -n "$iso_size" ] && [ -n "$tlpdb_pin" ]; then
+    local image=
+    while IFS= read -r url; do
+      have_size=$(python3 "$root/scripts/lib/iso9660.py" size "$url" 2> "$isodir/size-error.txt") || {
+        echo "$input: $url cannot be read in part: $(tail -n 1 "$isodir/size-error.txt")"
+        continue
+      }
+      if [ "$have_size" != "$iso_size" ]; then
+        echo "$input: $url is $have_size bytes, not the pinned $iso_size; trying the next mirror"
+        continue
+      fi
+      image=$url
+      break
+    done < <(jq -r "$sf.urls[]" "$manifest")
+    rm -f "$isodir/size-error.txt"
+    if [ -n "$image" ]; then
+      echo "$input: reading $file in part from $image ($have_size bytes, as pinned)"
+      python3 "$root/scripts/lib/iso9660.py" extract "$image" tlpkg/texlive.tlpdb "$db"
+      local have_tlpdb
+      have_tlpdb=$(sha256sum "$db" | cut -d' ' -f1)
+      echo "$input: tlpkg/texlive.tlpdb: SHA-256 $have_tlpdb"
+      check_pin "database SHA-256" "$tlpdb_pin" "$have_tlpdb"
+      report_database "$db" "$release"
+      resolve_packages "$@"
+      if [ ${#wanted[@]} -gt 0 ]; then
+        echo "$input: taking ${#wanted[@]} packages out of the image"
+        python3 "$tl" extract "$db" "$image" "$dest/archive" "${wanted[@]}"
+      fi
+      return 0
+    fi
+    echo "$input: no mirror can be read in part; downloading the whole image"
+  fi
+
   if [ ! -f "$iso" ]; then
     local fetched=0
     while IFS= read -r url; do

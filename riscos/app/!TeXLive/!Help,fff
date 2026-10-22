@@ -1,0 +1,73 @@
+TeX Live 2026 for RISC OS
+=========================
+
+This is a development version of a port of TeX Live 2026 to RISC OS 5,
+for testing. It provides pdfTeX, with LaTeX, from the command line. There
+is no desktop front end yet.
+
+Project: https://github.com/kierennicolas/ArmTex_update
+
+
+Installing
+----------
+
+1. Install SharedUnixLibrary 1.07 or later (PackMan has it).
+2. Copy !TeXLive anywhere you like, for example to $.Apps.
+3. Double-click !TeXLive once. It does not open a window: it makes the
+   commands below available. After that, the Filer sets them up again
+   whenever it sees !TeXLive (for example when you open the directory
+   holding it).
+
+
+Using it
+--------
+
+Press F12, or open a task window (Ctrl-F12), and go to the directory
+holding your document:
+
+    *Dir ADFS::HardDisc4.$.Documents
+
+Then:
+
+    *pdflatex mydoc
+
+typesets mydoc/tex with LaTeX and writes mydoc/pdf, with mydoc/log and
+mydoc/aux, in the same directory. Run it again if LaTeX asks you to (for
+cross-references). Use pdftex instead of pdflatex for plain TeX.
+
+TeX names files as Unix does: mydoc.tex on the command line is the RISC OS
+file mydoc/tex.
+
+Useful options:
+
+    -interaction=nonstopmode   do not stop at errors to ask what to do
+    -halt-on-error             stop at the first error
+
+kpsewhich finds a file in the TeX tree, for example:
+
+    *kpsewhich article.cls
+
+
+Commands
+--------
+
+    pdflatex    LaTeX, writing PDF
+    pdftex      plain TeX (with e-TeX), writing PDF
+    kpsewhich   look up files and settings in the TeX tree
+
+
+What is included
+----------------
+
+TeX Live's scheme-basic: plain TeX, LaTeX and the packages LaTeX needs,
+with Computer Modern and the AMS fonts. Formats were made on the build
+machine. More packages, engines (LuaLaTeX, DVI output) and a desktop front
+end are planned.
+
+
+Licence
+-------
+
+TeX Live is free software; its components carry their own licences. See
+LICENSE/TL and LICENSE/CTAN in !TeXLive. This version leaves out TeX Live's
+documentation to save space; it is at https://tug.org/texlive/ and on CTAN.

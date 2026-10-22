@@ -1,0 +1,8 @@
+| TeX Live 2026 for RISC OS: !Boot
+|
+| The Filer runs this when it first sees !TeXLive. It makes this copy's
+| commands (pdflatex, pdftex, kpsewhich) available at the command line,
+| unless another copy has already done so. Double-clicking a copy makes that
+| copy the one used.
+If "<TeXLive$Dir>" = "" Then Set TeXLive$Dir <Obey$Dir>
+If "<TeXLive$Dir>" = "<Obey$Dir>" Then Obey <Obey$Dir>.Resources.Commands

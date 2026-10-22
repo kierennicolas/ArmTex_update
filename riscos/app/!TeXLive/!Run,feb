@@ -1,0 +1,7 @@
+| TeX Live 2026 for RISC OS: !Run
+|
+| Double-click !TeXLive to make this copy provide the commands pdflatex,
+| pdftex and kpsewhich at the command line. There is no desktop front end
+| yet: see !Help.
+Set TeXLive$Dir <Obey$Dir>
+Obey <TeXLive$Dir>.Resources.Commands

@@ -29,7 +29,7 @@ Reference CI runs: [39670666067](https://github.com/kierennicolas/ArmTex_update/
 | Component | Status | Evidence and notes |
 |---|---|---|
 | TeX Live source pin (`texlive-2026.1`, commit `6a300188`) | Implemented | Fetched and checked in every CI run |
-| Support-file pin (TL2026 image of 1 March 2026) | Host-tested | [Run 39681991714](https://github.com/kierennicolas/ArmTex_update/actions/runs/39681991714): the image's SHA-512 is signed by TeX Live's key and matches the download; `plain`, `latex`, `cm` and `amsfonts` come out of it with the SHA-512 the database gives. `scheme-basic` is 116 packages, 19 MiB of containers ([#15](https://github.com/kierennicolas/ArmTex_update/pull/15)) |
+| Support-file pin (TL2026 image of 1 March 2026) | Host-tested | [Run 39681991714](https://github.com/kierennicolas/ArmTex_update/actions/runs/39681991714): the image's SHA-512 is signed by TeX Live's key and matches the download; `plain`, `latex`, `cm` and `amsfonts` come out of it with the SHA-512 the database gives. `scheme-basic` is 116 packages, 19 MiB of containers ([#15](https://github.com/kierennicolas/ArmTex_update/pull/15)). Since [run 39842663629](https://github.com/kierennicolas/ArmTex_update/actions/runs/39842663629) ([#18](https://github.com/kierennicolas/ArmTex_update/pull/18)) the image is read in part: 28.5 MB in 146 range requests, under three minutes |
 | Host tools: tangle, ctangle, tie, otangle, kpsewhich, pdftex | Host-tested | Native build in CI, cached between runs. The cross build uses tangle, ctangle, tie and otangle; the kit check uses kpsewhich |
 | Cross-configure of the whole tree for `arm-unknown-riscos` | Cross-compiled | configure succeeds; no `config.site` answers needed so far |
 | zlib, libpng, xpdf, kpathsea | Cross-compiled | xpdf 4.06 builds with GCC 4.7 in C++11 mode |
@@ -52,7 +52,7 @@ Reference CI runs: [39693205158](https://github.com/kierennicolas/ArmTex_update/
 | Emulator comparison (`compare-emulator-pdfs.sh`) | Host-tested | Blanks `/ID`, compares byte for byte, and shows any other difference in context |
 | `validate-pdf.sh` | Implemented | Checks structure, version, producer, page sizes, fonts and text against a reference. Local: tried on identical, re-dated, different and truncated PDFs. Not run in CI (the toolchain image has no qpdf or poppler-utils) |
 | Gate 3 kit (`package-pdftex-kit.sh`) | Host-tested | Artifact `TLPdfTeX-f0c69cd3b61b.zip`, 34.8 MB, 5682 tree files, with the reference PDFs; no file names that RISC OS might mangle. Gate 3 is [#17](https://github.com/kierennicolas/ArmTex_update/issues/17); procedure in [`testing.md`](testing.md#gate-3-pdftex-on-titanium) |
-| `!TeXLive` launcher | Not started | Milestone 3's remaining work item |
+| `!TeXLive` application (`package-release.sh`, `riscos/app/!TeXLive`) | Host-tested; Emulator-tested | [Run 39838947779](https://github.com/kierennicolas/ArmTex_update/actions/runs/39838947779) ([#18](https://github.com/kierennicolas/ArmTex_update/pull/18)): packaged as `TeXLive-2026-dev-<commit>.zip` (34.7 MB, 5682 tree files). Under the emulator, its `!Boot` and `!Run` define `pdflatex`, `pdftex` and `kpsewhich`, and the two test documents typeset through those commands give PDFs identical to the host's apart from `/ID`. Indicative only |
 
 ## Known failures
 
@@ -67,7 +67,7 @@ Reference CI runs: [39693205158](https://github.com/kierennicolas/ArmTex_update/
 ## Next priorities
 
 1. Gate 1 ([#3](https://github.com/kierennicolas/ArmTex_update/issues/3)) and Gate 2 ([#14](https://github.com/kierennicolas/ArmTex_update/issues/14)): waiting for the maintainer's reports on Titanium.
-2. Gate 3 ([#17](https://github.com/kierennicolas/ArmTex_update/issues/17)): the pdfTeX kit on Titanium. Meanwhile, the minimal `!TeXLive` launcher, so `pdflatex` works from the command line.
+2. Gate 3 ([#17](https://github.com/kierennicolas/ArmTex_update/issues/17)): the pdfTeX kit on Titanium. Once it passes, the `!TeXLive` application can be tried on hardware the same way, and a development prerelease published.
 3. Milestone 6 ([#8](https://github.com/kierennicolas/ArmTex_update/issues/8)): supply configure's C++11 answer for graphite2 and HarfBuzz in `config.site`, to find out whether the libraries themselves compile with GCC 4.7.
 4. Look for a C++17-capable RISC OS compiler (the GCC 8 and 10 work mentioned in community sources) before Milestone 7 ([#9](https://github.com/kierennicolas/ArmTex_update/issues/9)).
 

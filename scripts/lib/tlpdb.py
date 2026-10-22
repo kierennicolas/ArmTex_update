@@ -46,7 +46,8 @@ Usage:
         (a scheme or collection, in some databases) needs none. Exits 1 if
         any is missing or wrong.
     tlpdb.py extract TLPDB IMAGE DIR PKG...
-        Copy each PKG's container out of the ISO image IMAGE into DIR as
+        Copy each PKG's container out of the ISO image IMAGE (a file, or an
+        http(s) URL read with range requests) into DIR as
         PKG.tar.xz (no dependency expansion), and check its size and SHA-512.
         In the image it is archive/PKG.rREVISION.tar.xz or archive/PKG.tar.xz.
         A file already in DIR that passes the checks is kept.
@@ -400,13 +401,17 @@ def main(argv):
         return 1 if check(records, args[1], args[2:]) else 0
     if command == "extract" and len(args) >= 4:
         records = parse(args[0])
-        with open(args[1], "rb") as handle:
-            try:
-                image = iso9660.Image(handle)
-            except iso9660.IsoError as error:
-                print(f"error: {args[1]}: {error}", file=sys.stderr)
-                return 1
-            return 1 if extract(records, image, args[2], args[3:]) else 0
+        try:
+            handle = iso9660.open_image(args[1])
+            image = iso9660.Image(handle)
+        except (OSError, iso9660.IsoError) as error:
+            print(f"error: {args[1]}: {error}", file=sys.stderr)
+            return 1
+        with handle:
+            failures = extract(records, image, args[2], args[3:])
+            if isinstance(handle, iso9660.HttpRangeFile):
+                print(f"read {handle.fetched} bytes of the image in {handle.requests} requests")
+        return 1 if failures else 0
     print(__doc__, file=sys.stderr)
     return 2
 
