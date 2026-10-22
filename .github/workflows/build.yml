@@ -39,7 +39,7 @@ jobs:
         run: python3 -m unittest discover -v -s tests/scripts -p 'test_*.py'
 
       - name: Shell script lint
-        run: shellcheck scripts/*.sh tests/scripts/*.sh
+        run: shellcheck -x scripts/*.sh scripts/lib/*.sh tests/scripts/*.sh
 
       - name: Manifest is valid JSON with the required pins
         run: |
@@ -440,6 +440,47 @@ jobs:
           archive: false
           if-no-files-found: error
 
+      # The !TeXLive application: the whole tree, as a development release,
+      # and a subset run in the emulator through its own !Boot, !Run and
+      # commands.
+      - name: Package !TeXLive
+        id: app
+        if: always() && steps.docs.outcome == 'success' && hashFiles('tl-out/aif/pdftex,ff8') != ''
+        env:
+          BUILD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          scripts/package-release.sh tl-out tl-tree full 2>&1 | tee tl-logs/package-release.log
+          scripts/package-release.sh tl-out tl-tree tl-docs 2>&1 | tee -a tl-logs/package-release.log
+          name="TeXLive-2026-dev-${BUILD_COMMIT:0:12}.zip"
+          cp tl-out/TeXLive.zip "tl-out/$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      # Indicative only: RISC OS Pyromaniac, not RISC OS 5.30.
+      - name: Emulator run of !TeXLive
+        id: appemu
+        if: always() && steps.app.outcome == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        continue-on-error: true
+        timeout-minutes: 15
+        env:
+          ROBUILD_ARTIFACT: Out
+          ROBUILD_TIMEOUT: "600"
+        run: |
+          scripts/run-emulator.sh tl-out/app-emulator tl-out/app-emulator-commands.txt tl-out/app-emulator-run 2>&1 | tee tl-logs/app-emulator.log
+
+      - name: Compare the application's PDFs with the host's
+        id: appcompare
+        if: always() && steps.appemu.outcome == 'success'
+        continue-on-error: true
+        run: scripts/compare-emulator-pdfs.sh tl-out/app-emulator-run tl-docs 2>&1 | tee tl-logs/app-compare-pdfs.log
+
+      - name: Upload !TeXLive
+        if: always() && steps.app.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: tl-out/${{ steps.app.outputs.name }}
+          archive: false
+          if-no-files-found: error
+
       - name: Job summary and annotations
         if: always()
         run: |
@@ -521,6 +562,24 @@ jobs:
             scripts/ci-annotate.sh notice "pdfTeX emulator step output" tl-logs/pdftex-emulator.log 60
           fi
 
+      - name: Application annotations
+        if: always()
+        run: |
+          if [ -f tl-logs/package-release.log ]; then
+            grep -E '^!TeXLive|error|^RISC OS name check|^WARNING' tl-logs/package-release.log | head -n 60 > tl-logs/app-summary.txt || true
+            level=notice
+            if [ "${{ steps.app.outcome }}" = failure ]; then level=error; fi
+            scripts/ci-annotate.sh "$level" "!TeXLive packages" tl-logs/app-summary.txt 60
+          fi
+          if [ -f tl-logs/app-compare-pdfs.log ]; then
+            scripts/ci-annotate.sh notice "!TeXLive in the emulator: PDFs against the host's" tl-logs/app-compare-pdfs.log 40
+          fi
+          if [ -f tl-out/app-emulator-run/output.txt ]; then
+            scripts/ci-annotate.sh notice "!TeXLive in the emulator (Pyromaniac; indicative only)" tl-out/app-emulator-run/output.txt 120
+          elif [ -f tl-logs/app-emulator.log ]; then
+            scripts/ci-annotate.sh notice "!TeXLive emulator step output" tl-logs/app-emulator.log 60
+          fi
+
       - name: Upload TeX Live build record
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -541,4 +600,6 @@ jobs:
             tl-out/pdftex-emulator/output.txt
             tl-out/pdftex-emulator/result,*
             tl-out/pdftex-emulator/pdf/
+            tl-out/app-emulator-run/output.txt
+            tl-out/app-emulator-run/pdf/
           if-no-files-found: warn

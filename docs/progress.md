@@ -52,7 +52,7 @@ Reference CI runs: [39693205158](https://github.com/kierennicolas/ArmTex_update/
 | Emulator comparison (`compare-emulator-pdfs.sh`) | Host-tested | Blanks `/ID`, compares byte for byte, and shows any other difference in context |
 | `validate-pdf.sh` | Implemented | Checks structure, version, producer, page sizes, fonts and text against a reference. Local: tried on identical, re-dated, different and truncated PDFs. Not run in CI (the toolchain image has no qpdf or poppler-utils) |
 | Gate 3 kit (`package-pdftex-kit.sh`) | Host-tested | Artifact `TLPdfTeX-f0c69cd3b61b.zip`, 34.8 MB, 5682 tree files, with the reference PDFs; no file names that RISC OS might mangle. Gate 3 is [#17](https://github.com/kierennicolas/ArmTex_update/issues/17); procedure in [`testing.md`](testing.md#gate-3-pdftex-on-titanium) |
-| `!TeXLive` launcher | Not started | Milestone 3's remaining work item |
+| `!TeXLive` application (`package-release.sh`, `riscos/app/!TeXLive`) | Implemented | `!Boot` and `!Run` define `pdflatex`, `pdftex` and `kpsewhich`; packaged as `TeXLive-2026-dev-<commit>.zip`. First CI run pending ([#18](https://github.com/kierennicolas/ArmTex_update/pull/18)) |
 
 ## Known failures
 
@@ -67,7 +67,7 @@ Reference CI runs: [39693205158](https://github.com/kierennicolas/ArmTex_update/
 ## Next priorities
 
 1. Gate 1 ([#3](https://github.com/kierennicolas/ArmTex_update/issues/3)) and Gate 2 ([#14](https://github.com/kierennicolas/ArmTex_update/issues/14)): waiting for the maintainer's reports on Titanium.
-2. Gate 3 ([#17](https://github.com/kierennicolas/ArmTex_update/issues/17)): the pdfTeX kit on Titanium. Meanwhile, the minimal `!TeXLive` launcher, so `pdflatex` works from the command line.
+2. Gate 3 ([#17](https://github.com/kierennicolas/ArmTex_update/issues/17)): the pdfTeX kit on Titanium. Once it passes, the `!TeXLive` application can be tried on hardware the same way, and a development prerelease published.
 3. Milestone 6 ([#8](https://github.com/kierennicolas/ArmTex_update/issues/8)): supply configure's C++11 answer for graphite2 and HarfBuzz in `config.site`, to find out whether the libraries themselves compile with GCC 4.7.
 4. Look for a C++17-capable RISC OS compiler (the GCC 8 and 10 work mentioned in community sources) before Milestone 7 ([#9](https://github.com/kierennicolas/ArmTex_update/issues/9)).
 

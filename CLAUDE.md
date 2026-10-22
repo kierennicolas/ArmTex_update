@@ -90,7 +90,7 @@ These are the current defaults. Open decisions, and the milestone that settles e
 - **Filenames** (default, confirmed or replaced in Milestone 2): the texmf tree is stored with UnixLib's suffix-directory swapping turned off, so `article.cls` becomes `article/cls`. Lookups rely on kpathsea's `ls-R` database.
 - **Formats** (default, confirmed or replaced in Milestone 3): `.fmt` files are generated on the host by a host pdfTeX built from the identical pinned source and configuration, relying on Web2c's default architecture-independent format files. If a host-built format fails to load on RISC OS, generate formats natively.
 - **Perl-based tools** (fmtutil, updmap, tlmgr, latexmk) run on the host at packaging time until a native strategy is decided.
-- **Installation** must work from any filing-system location, with no manual environment-variable setup by the user. `!TeXLive.!Boot` and `!Run` set whatever kpathsea cannot work out for itself.
+- **Installation** must work from any filing-system location, with no manual environment-variable setup by the user. `!TeXLive.!Boot` and `!Run` set whatever kpathsea cannot work out for itself. Provisional layout (Milestone 3): everything inside `!TeXLive`, laid out as a TeX Live installation (`bin.riscos`, `texmf-dist`, `texmf-var`); the commands are aliases set by `!Boot` and `!Run`. See `docs/architecture.md`.
 
 ## Out of scope unless the maintainer agrees
 
@@ -123,4 +123,4 @@ Created as the milestones need them. Keep this table current.
 | `scripts/test-build.sh` | Host-side tests and output validation | Planned |
 | `scripts/compare-emulator-pdfs.sh` | Compare the PDFs from the emulator run with the host references, byte for byte, then with `validate-pdf.sh` | M3 |
 | `scripts/validate-pdf.sh` | Check a PDF produced on RISC OS against the host-produced reference: identical, or the same structure, pages, fonts and text (needs qpdf and poppler-utils) | M3 |
-| `scripts/package-release.sh` | Build the `!TeXLive` archive with filetypes preserved | Planned |
+| `scripts/package-release.sh` | Build the `!TeXLive` application (from `riscos/app/!TeXLive`) and its archive with filetypes preserved; or a subset for the emulator (uses `scripts/lib/riscos-tree.sh`) | M3 |

@@ -17,12 +17,14 @@
 #
 # The kit is laid out as TeX Live is: the programs in bin/riscos/, so the kit's
 # top directory is kpathsea's SELFAUTOPARENT and texmf.cnf is found unchanged.
-# Files carry ,xxx filetype suffixes: Text (fff) for files people read, Data
-# (ffd) for the rest. ls-R is regenerated for what is in the kit.
+# Files carry ,xxx filetype suffixes, and ls-R is regenerated for what is in
+# the kit (scripts/lib/riscos-tree.sh).
 
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
+# shellcheck source=scripts/lib/riscos-tree.sh
+. "$root/scripts/lib/riscos-tree.sh"
 if [ $# -ne 4 ]; then
   echo "usage: $0 <tl-out-dir> <tree-out-dir> <docs-out-dir> <full|emulator>" >&2
   exit 2
@@ -55,76 +57,15 @@ cp "$tlout/aif/pdftex,ff8" "$tlout/aif/kpsewhich,ff8" "$kit/bin/riscos/"
 # The files to ship, relative to the tree.
 list="$tlout/kit/$name-files.txt"
 if [ "$kind" = full ]; then
-  (cd "$tree" && find texmf-dist texmf-var -type f ! -name ls-R | LC_ALL=C sort) > "$list"
+  tree_file_list "$tree" full > "$list"
 else
   # Every file a test document read from the tree, by the -recorder lists.
-  {
-    sed -n "s#^INPUT $tree/##p" "$docs"/*.fls
-    echo texmf-dist/web2c/texmf.cnf
-  } | grep -v '/ls-R$' | LC_ALL=C sort -u > "$list"
+  tree_file_list "$tree" "$docs" > "$list"
 fi
-
-filetype() {
-  case $1 in
-    *.tex | *.sty | *.cls | *.clo | *.cfg | *.def | *.fd | *.ldf | *.ltx | *.ini | \
-      *.cnf | *.map | *.enc | *.dat | *.lua | *.tcx | *.txt | *.md | *.pl | *.lco | \
-      *README* | *readme*) echo fff ;;
-    *) echo ffd ;;
-  esac
-}
-
-files=0
-while IFS= read -r path; do
-  [ -f "$tree/$path" ] || { echo "error: $path is not in the tree" >&2; exit 1; }
-  mkdir -p "$kit/$(dirname "$path")"
-  cp "$tree/$path" "$kit/$path,$(filetype "$path")"
-  files=$((files + 1))
-done < "$list"
-
-# ls-R for each tree in the kit, listing it as kpathsea sees it through
-# UnixLib: Unix-style names, without the ,xxx suffixes.
-for texmf in texmf-dist texmf-var; do
-  [ -d "$kit/$texmf" ] || continue
-  # Listed in itself, as mktexlsr's ls-R is; written outside the tree first.
-  : > "$kit/$texmf/ls-R,fff"
-  (
-    cd "$kit/$texmf"
-    echo "% ls-R -- filename database for kpathsea; do not change this line."
-    find . -type d | LC_ALL=C sort | while read -r d; do
-      echo
-      if [ "$d" = . ]; then echo "./:"; else echo "$d:"; fi
-      find "$d" -mindepth 1 -maxdepth 1 | sed -e 's#.*/##' -e 's#,[0-9a-f]\{3\}$##' | LC_ALL=C sort
-    done
-  ) > "$tlout/kit/ls-R.tmp"
-  mv "$tlout/kit/ls-R.tmp" "$kit/$texmf/ls-R,fff"
-done
-
-# Names that may not survive on a RISC OS filing system: characters that are
-# special in RISC OS paths, or two names in a directory that differ only in
-# case (FileCore ignores case). Reported, not fixed: it is for Gate 3 to show
-# whether any matters.
-python3 - "$kit" <<'EOF'
-import os, re, sys
-kit = sys.argv[1]
-special = re.compile(r'[$&@^%#*\\:"|<>\s]')
-problems = 0
-for base, dirs, files in os.walk(kit):
-    seen = {}
-    for name in dirs + files:
-        plain = re.sub(r",[0-9a-f]{3}$", "", name)
-        rel = os.path.relpath(os.path.join(base, plain), kit)
-        if special.search(plain):
-            print(f"WARNING: {rel}: a character special in RISC OS paths")
-            problems += 1
-        if len(plain) > 255:
-            print(f"WARNING: {rel}: longer than 255 characters")
-            problems += 1
-        other = seen.setdefault(plain.lower(), plain)
-        if other != plain:
-            print(f"WARNING: {rel}: differs only in case from {other}")
-            problems += 1
-print(f"RISC OS name check: {problems} problem(s)")
-EOF
+files=$(copy_tree_files "$tree" "$list" "$kit")
+write_ls_r "$kit"
+# Reported, not fixed: it is for Gate 3 to show whether any matters.
+check_riscos_names "$kit"
 
 cp "$root/tests/documents/storytest.tex" "$kit/Tests/storytest.tex,fff"
 cp "$root/tests/documents/test.tex" "$kit/Tests/test.tex,fff"

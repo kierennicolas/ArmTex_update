@@ -18,7 +18,7 @@ To run the host-side tests locally:
 
 ```
 python3 -m unittest discover -s tests/scripts -p 'test_*.py'
-shellcheck scripts/*.sh tests/scripts/*.sh
+shellcheck -x scripts/*.sh scripts/lib/*.sh tests/scripts/*.sh
 ```
 
 ## Emulator evaluation
