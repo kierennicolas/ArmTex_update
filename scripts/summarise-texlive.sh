@@ -19,4 +19,4 @@ echo "| Component | Kind | Result | First error |"
 echo "|---|---|---|---|"
 jq -r '.components[] | "| \(.name) | \(.kind) | \(.status) | \(.detail | gsub("\\|"; "\\\\|") | .[0:160]) |"' "$results"
 echo
-echo "Required components must build for Milestone 2; probes show what later milestones face. Nothing here has run on RISC OS."
+echo "Required components must build for the milestones so far; probes show what later milestones face. This table alone says nothing about running on RISC OS."

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Cross-configure TeX Live for RISC OS and build the components Milestone 2
-# needs, recording which of them build.
+# Cross-configure TeX Live for RISC OS and build the components the
+# milestones need, recording which of them build.
 #
 # Usage: scripts/build-texlive.sh <texlive-source> <host-tools-prefix> <out-dir>
 #
@@ -8,9 +8,9 @@
 # scripts/build-host-tools.sh: web2c needs tangle, ctangle, tie and otangle
 # that run on the build machine.
 #
-# Components are "required" (Milestone 2 cannot finish without them) or
-# "probe" (later milestones need them, and we want to know early whether this
-# compiler can build them). Every component is attempted; the script exits 1
+# Components are "required" (the milestones so far cannot finish without
+# them) or "probe" (later milestones need them, and we want to know early
+# whether this compiler can build them). Every component is attempted; the script exits 1
 # only if a required one fails.
 #
 # Layout of <out-dir>:
@@ -80,6 +80,12 @@ configure_args=(
   --disable-all-pkgs
   --enable-pdftex
   --enable-luahbtex
+  # Milestones 4 and 5: Knuth's TeX for DVI (web2c also builds bibtex with
+  # it), makeindex, dvipdfmx and dvips.
+  --enable-tex
+  --enable-makeindexk
+  --enable-dvipdfm-x
+  --enable-dvipsk
   --disable-xetex
   --disable-synctex
   --without-x
@@ -168,6 +174,7 @@ libraries=(
   "harfbuzz|probe|libs/harfbuzz"
   "gmp|probe|libs/gmp"
   "mpfr|probe|libs/mpfr"
+  "libpaper|probe|libs/libpaper"
 )
 
 for entry in "${libraries[@]}"; do
@@ -192,9 +199,16 @@ for entry in "${libraries[@]}"; do
 done
 
 # Programs: name|kind|make directory|make target|binary path
+# pdftex is required from Milestone 3 on; the rest are probes for Milestones 4
+# (bibtex, makeindex) and 5 (tex, dvipdfmx, dvips).
 programs=(
   "kpsewhich|required|texk/kpathsea|kpsewhich|texk/kpathsea/kpsewhich"
-  "pdftex|probe|texk/web2c|pdftex|texk/web2c/pdftex"
+  "pdftex|required|texk/web2c|pdftex|texk/web2c/pdftex"
+  "bibtex|probe|texk/web2c|bibtex|texk/web2c/bibtex"
+  "tex|probe|texk/web2c|tex|texk/web2c/tex"
+  "makeindex|probe|texk/makeindexk|makeindex|texk/makeindexk/makeindex"
+  "dvipdfmx|probe|texk/dvipdfm-x|xdvipdfmx|texk/dvipdfm-x/xdvipdfmx"
+  "dvips|probe|texk/dvipsk|dvips|texk/dvipsk/dvips"
 )
 
 for entry in "${programs[@]}"; do
