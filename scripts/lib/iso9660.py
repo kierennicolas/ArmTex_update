@@ -14,12 +14,19 @@ Joliet specification (supplementary volume descriptor, UCS-2 names).
 Usage:
     iso9660.py ls IMAGE DIR             list a directory
     iso9660.py extract IMAGE PATH DEST  copy one file out of the image
+    iso9660.py size IMAGE               print the image's size in bytes
 
-Exits 1 if a path is not in the image.
+IMAGE is a file, or an http(s) URL: then only the parts needed are fetched,
+with HTTP range requests (HttpRangeFile), instead of the whole image.
+
+Exits 1 if a path is not in the image or the image cannot be read.
 """
 
+import collections
 import struct
 import sys
+import time
+import urllib.request
 
 SECTOR = 2048
 DESCRIPTORS_START = 16
@@ -28,6 +35,110 @@ JOLIET_ESCAPES = (b"%/@", b"%/C", b"%/E")
 
 class IsoError(Exception):
     pass
+
+
+class HttpRangeFile:
+    """A read-only, seekable file over HTTP range requests, so that parts of
+    a large image can be read without downloading it. Small reads go through
+    a cache of BLOCK-sized pieces (directories are read a sector at a time);
+    reads of BLOCK or more are fetched exactly. Each request is retried."""
+
+    BLOCK = 1 << 16
+    CACHED_BLOCKS = 256
+    ATTEMPTS = 3
+    RETRY_DELAY = 5  # seconds, times the attempt number
+
+    def __init__(self, url, timeout=120):
+        self.url = url
+        self.timeout = timeout
+        self.pos = 0
+        self.requests = 0
+        self.fetched = 0
+        self.cache = collections.OrderedDict()
+        self.size = None
+        _, self.size = self._get(0, 0)
+        if self.size is None:
+            raise IsoError(f"{url}: the server gave no size (Content-Range)")
+
+    def _get(self, start, end):
+        """Bytes start..end inclusive, and the total size from Content-Range."""
+        request = urllib.request.Request(self.url, headers={"Range": f"bytes={start}-{end}"})
+        for attempt in range(1, self.ATTEMPTS + 1):
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                    if response.status != 206:
+                        raise IsoError(f"{self.url}: the server does not serve byte ranges "
+                                       f"(status {response.status})")
+                    data = response.read()
+                    total = response.headers.get("Content-Range", "").rpartition("/")[2]
+                self.requests += 1
+                self.fetched += len(data)
+                if len(data) != end - start + 1:
+                    raise IsoError(f"{self.url}: asked for {end - start + 1} bytes at {start}, got {len(data)}")
+                return data, int(total) if total.isdigit() else self.size
+            except OSError as error:
+                status = getattr(error, "code", None)
+                if attempt == self.ATTEMPTS or status in (403, 404, 410, 416):
+                    raise IsoError(f"{self.url}: bytes {start}-{end}: {error}") from error
+                time.sleep(self.RETRY_DELAY * attempt)
+        raise AssertionError("unreachable")
+
+    def _block(self, index):
+        if index in self.cache:
+            self.cache.move_to_end(index)
+            return self.cache[index]
+        start = index * self.BLOCK
+        end = min(start + self.BLOCK, self.size) - 1
+        data, _ = self._get(start, end)
+        self.cache[index] = data
+        if len(self.cache) > self.CACHED_BLOCKS:
+            self.cache.popitem(last=False)
+        return data
+
+    def seek(self, offset, whence=0):
+        base = {0: 0, 1: self.pos, 2: self.size}[whence]
+        self.pos = base + offset
+        return self.pos
+
+    def tell(self):
+        return self.pos
+
+    def read(self, n=-1):
+        if n is None or n < 0:
+            n = self.size - self.pos
+        n = max(0, min(n, self.size - self.pos))
+        if n == 0:
+            return b""
+        if n >= self.BLOCK:
+            data, _ = self._get(self.pos, self.pos + n - 1)
+        else:
+            parts = []
+            pos, remaining = self.pos, n
+            while remaining:
+                block = self._block(pos // self.BLOCK)
+                piece = block[pos % self.BLOCK:pos % self.BLOCK + remaining]
+                parts.append(piece)
+                pos += len(piece)
+                remaining -= len(piece)
+            data = b"".join(parts)
+        self.pos += len(data)
+        return data
+
+    def close(self):
+        self.cache.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+
+def open_image(location):
+    """A binary file object for an image path or http(s) URL."""
+    if location.startswith(("http://", "https://")):
+        return HttpRangeFile(location)
+    return open(location, "rb")
 
 
 class Entry:
@@ -208,25 +319,25 @@ class Image:
 
 
 def main(argv):
-    if len(argv) == 4 and argv[1] == "ls":
-        with open(argv[2], "rb") as handle:
-            try:
+    try:
+        if len(argv) == 4 and argv[1] == "ls":
+            with open_image(argv[2]) as handle:
                 entries = Image(handle).list(argv[3])
-            except IsoError as error:
-                print(f"error: {error}", file=sys.stderr)
-                return 1
-        for name in sorted(entries):
-            entry = entries[name]
-            print(f"{'d' if entry.is_dir else '-'} {entry.size:>12} {name}")
-        return 0
-    if len(argv) == 5 and argv[1] == "extract":
-        with open(argv[2], "rb") as handle, open(argv[4], "wb") as out:
-            try:
+            for name in sorted(entries):
+                entry = entries[name]
+                print(f"{'d' if entry.is_dir else '-'} {entry.size:>12} {name}")
+            return 0
+        if len(argv) == 5 and argv[1] == "extract":
+            with open_image(argv[2]) as handle, open(argv[4], "wb") as out:
                 Image(handle).copy(argv[3], out)
-            except IsoError as error:
-                print(f"error: {error}", file=sys.stderr)
-                return 1
-        return 0
+            return 0
+        if len(argv) == 3 and argv[1] == "size":
+            with open_image(argv[2]) as handle:
+                print(handle.seek(0, 2))
+            return 0
+    except (IsoError, OSError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     print(__doc__, file=sys.stderr)
     return 2
 
