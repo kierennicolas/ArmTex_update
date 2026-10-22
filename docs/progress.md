@@ -36,7 +36,8 @@ Reference CI runs: [39670666067](https://github.com/kierennicolas/ArmTex_update/
 | kpsewhich | Cross-compiled; Emulator-tested | Statically linked, passes the binary checks. Under the emulator it finds `texmf.cnf`, `article.cls`, `plain.tex`, `cmr10.tfm` and `cmr10.pfb` through `ls-R`, with `SELFAUTOPARENT` set to the kit's directory |
 | Probes: FreeType, pplib, zziplib, Lua 5.3, GMP, MPFR | Cross-compiled | Libraries only |
 | Probes: graphite2, HarfBuzz | Configure fails | Both stop at configure's C++11 test: GCC 4.7 rejects one of its constructs (a `static constexpr auto` member of a variadic class template, "has no initializer"). Whether the libraries themselves compile is untested; see Milestone 6 ([#8](https://github.com/kierennicolas/ArmTex_update/issues/8)) |
-| Probe: pdftex | Cross-compiled | Links statically, converts to AIF and passes the binary checks. Not yet run anywhere: it needs a texmf tree and format files (Milestone 3) |
+| pdftex | Cross-compiled | Links statically, converts to AIF and passes the binary checks. A required component since [#19](https://github.com/kierennicolas/ArmTex_update/pull/19); running it is Milestone 3, below |
+| Probes for Milestones 4 and 5: bibtex, makeindex, tex, dvipdfmx, dvips (and libpaper) | Cross-compiled | [Run 39846083887](https://github.com/kierennicolas/ArmTex_update/actions/runs/39846083887) ([#19](https://github.com/kierennicolas/ArmTex_update/pull/19)): all build, convert to AIF and pass the binary checks. Not packaged or run anywhere yet |
 | Gate 2 kit (`package-kpse-kit.sh`) | Host-tested | [39674828080](https://github.com/kierennicolas/ArmTex_update/actions/runs/39674828080): artifact `TLKpse-327a1e4ce122.zip`; `test-kpse-kit.sh` finds every file through the tree's `ls-R` with the native kpsewhich, in place and moved; the emulator run gives the same answers as before |
 
 ## Milestone 3 components
