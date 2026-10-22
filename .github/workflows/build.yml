@@ -124,7 +124,7 @@ jobs:
         run: scripts/run-emulator.sh out/kit/TLTest out/emulator-commands.txt out/emulator 2>&1 | tee out-logs/emulator.log
 
       - name: Job summary
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
           if [ -f out/results.json ]; then
             scripts/summarise-results.sh out >> "$GITHUB_STEP_SUMMARY"
@@ -145,7 +145,7 @@ jobs:
       # Job logs live in storage that not every reader can reach; annotations
       # put the results and any failure on the run page and in the checks API.
       - name: Annotate results
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
           if [ -f out/results.json ]; then
             scripts/summarise-results.sh out > out-logs/summary.md
@@ -162,7 +162,7 @@ jobs:
           annotate_failure "${{ steps.kit.outcome }}" package-testkit
 
       - name: Annotate emulator output
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
           if [ -f out-logs/emulator.log ]; then
             grep -v '^      - ' out-logs/emulator.log > out-logs/emulator-short.log || true
@@ -180,7 +180,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload build record
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: build-record
@@ -258,7 +258,7 @@ jobs:
           echo "scheme-basic: ${#packages[@]} packages, $((bytes / 1048576)) MiB of containers" | tee -a sf-logs/fetch.log
 
       - name: Annotations
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
           level=notice
           if [ "${{ job.status }}" != success ]; then level=error; fi
@@ -271,7 +271,9 @@ jobs:
     name: TeX Live cross build
     needs: [toolchain, support-files]
     # The cross build does not need the support files; only the tree does.
-    if: always() && needs.toolchain.result == 'success'
+    # !cancelled(), not always(): always() keeps a job or step running even
+    # after the run is cancelled.
+    if: ${{ !cancelled() && needs.toolchain.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:
@@ -334,7 +336,7 @@ jobs:
 
       - name: Check cross-compiled programs
         id: check
-        if: always() && steps.cross.outcome != 'skipped'
+        if: ${{ !cancelled() && steps.cross.outcome != 'skipped' }}
         run: |
           shopt -s nullglob
           elfs=(tl-out/bin/*)
@@ -347,7 +349,7 @@ jobs:
 
       - name: Package the Gate 2 kit
         id: kpsekit
-        if: always() && hashFiles('tl-out/aif/kpsewhich,ff8') != ''
+        if: ${{ !cancelled() && hashFiles('tl-out/aif/kpsewhich,ff8') != '' }}
         env:
           BUILD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
@@ -360,20 +362,20 @@ jobs:
       # source, in place and after moving it. No RISC OS binary runs here.
       - name: Check the Gate 2 kit's tree
         id: kitcheck
-        if: always() && steps.kpsekit.outcome == 'success'
+        if: ${{ !cancelled() && steps.kpsekit.outcome == 'success' }}
         run: |
           scripts/test-kpse-kit.sh tl-out/kit/TLKpse host-tools/bin/kpsewhich 2>&1 | tee tl-logs/test-kpse-kit.log
 
       # Indicative only: RISC OS Pyromaniac, not RISC OS 5.30.
       - name: Emulator run of the Gate 2 kit
-        if: always() && steps.kpsekit.outcome == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        if: ${{ !cancelled() && steps.kpsekit.outcome == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         continue-on-error: true
         timeout-minutes: 10
         run: |
           scripts/run-emulator.sh tl-out/kit/TLKpse tl-out/kpse-emulator-commands.txt tl-out/emulator 2>&1 | tee tl-logs/emulator.log
 
       - name: Upload the Gate 2 kit
-        if: always() && steps.kpsekit.outcome == 'success'
+        if: ${{ !cancelled() && steps.kpsekit.outcome == 'success' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           path: tl-out/${{ steps.kpsekit.outputs.name }}
@@ -384,7 +386,7 @@ jobs:
       # with the host tools and TeX Live's own scripts.
       - name: Restore the support files
         id: sf
-        if: always() && steps.hosttools.outcome != 'failure' && needs.support-files.result == 'success'
+        if: ${{ !cancelled() && steps.hosttools.outcome != 'failure' && needs.support-files.result == 'success' }}
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: sf
@@ -393,17 +395,17 @@ jobs:
 
       - name: Build the texmf tree and formats
         id: tree
-        if: always() && steps.sf.outcome == 'success'
+        if: ${{ !cancelled() && steps.sf.outcome == 'success' }}
         run: scripts/build-texmf-tree.sh sf host-tools tl-tree 2>&1 | tee tl-logs/texmf-tree.log
 
       - name: Compile the test documents on the host
         id: docs
-        if: always() && steps.tree.outcome == 'success'
+        if: ${{ !cancelled() && steps.tree.outcome == 'success' }}
         run: scripts/test-documents.sh tl-tree tl-docs 2>&1 | tee tl-logs/test-documents.log
 
       - name: Package the pdfTeX kits
         id: pdftexkit
-        if: always() && steps.docs.outcome == 'success' && hashFiles('tl-out/aif/pdftex,ff8') != ''
+        if: ${{ !cancelled() && steps.docs.outcome == 'success' && hashFiles('tl-out/aif/pdftex,ff8') != '' }}
         env:
           BUILD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
@@ -417,7 +419,7 @@ jobs:
       # whether formats made on the build machine load in the RISC OS build.
       - name: Emulator run of the pdfTeX kit
         id: pdftexemu
-        if: always() && steps.pdftexkit.outcome == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        if: ${{ !cancelled() && steps.pdftexkit.outcome == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         continue-on-error: true
         timeout-minutes: 15
         env:
@@ -428,12 +430,12 @@ jobs:
 
       - name: Compare the emulator's PDFs with the host's
         id: comparepdf
-        if: always() && steps.pdftexemu.outcome == 'success'
+        if: ${{ !cancelled() && steps.pdftexemu.outcome == 'success' }}
         continue-on-error: true
         run: scripts/compare-emulator-pdfs.sh tl-out/pdftex-emulator tl-docs 2>&1 | tee tl-logs/compare-pdfs.log
 
       - name: Upload the pdfTeX kit
-        if: always() && steps.pdftexkit.outcome == 'success'
+        if: ${{ !cancelled() && steps.pdftexkit.outcome == 'success' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           path: tl-out/${{ steps.pdftexkit.outputs.name }}
@@ -445,7 +447,7 @@ jobs:
       # commands.
       - name: Package !TeXLive
         id: app
-        if: always() && steps.docs.outcome == 'success' && hashFiles('tl-out/aif/pdftex,ff8') != ''
+        if: ${{ !cancelled() && steps.docs.outcome == 'success' && hashFiles('tl-out/aif/pdftex,ff8') != '' }}
         env:
           BUILD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
@@ -458,7 +460,7 @@ jobs:
       # Indicative only: RISC OS Pyromaniac, not RISC OS 5.30.
       - name: Emulator run of !TeXLive
         id: appemu
-        if: always() && steps.app.outcome == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        if: ${{ !cancelled() && steps.app.outcome == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         continue-on-error: true
         timeout-minutes: 15
         env:
@@ -469,12 +471,12 @@ jobs:
 
       - name: Compare the application's PDFs with the host's
         id: appcompare
-        if: always() && steps.appemu.outcome == 'success'
+        if: ${{ !cancelled() && steps.appemu.outcome == 'success' }}
         continue-on-error: true
         run: scripts/compare-emulator-pdfs.sh tl-out/app-emulator-run tl-docs 2>&1 | tee tl-logs/app-compare-pdfs.log
 
       - name: Upload !TeXLive
-        if: always() && steps.app.outcome == 'success'
+        if: ${{ !cancelled() && steps.app.outcome == 'success' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           path: tl-out/${{ steps.app.outputs.name }}
@@ -482,7 +484,7 @@ jobs:
           if-no-files-found: error
 
       - name: Job summary and annotations
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
           if [ -f tl-out/emulator/output.txt ]; then
             # kpsewhich's -debug output is long; annotate it separately, keeping
@@ -535,7 +537,7 @@ jobs:
       # Separate from the step above: GitHub keeps only ten annotations of
       # each level per step.
       - name: Milestone 3 annotations
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
           if [ -f tl-tree/tree.json ]; then
             grep -E '^[0-9]+ packages' tl-logs/texmf-tree.log > tl-logs/texmf-tree-summary.txt || true
@@ -563,7 +565,7 @@ jobs:
           fi
 
       - name: Application annotations
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
           if [ -f tl-logs/package-release.log ]; then
             grep -E '^!TeXLive|error|^RISC OS name check|^WARNING' tl-logs/package-release.log | head -n 60 > tl-logs/app-summary.txt || true
@@ -581,7 +583,7 @@ jobs:
           fi
 
       - name: Upload TeX Live build record
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: texlive-build-record
