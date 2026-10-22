@@ -52,7 +52,7 @@ Reference CI runs: [39693205158](https://github.com/kierennicolas/ArmTex_update/
 | Emulator comparison (`compare-emulator-pdfs.sh`) | Host-tested | Blanks `/ID`, compares byte for byte, and shows any other difference in context |
 | `validate-pdf.sh` | Implemented | Checks structure, version, producer, page sizes, fonts and text against a reference. Local: tried on identical, re-dated, different and truncated PDFs. Not run in CI (the toolchain image has no qpdf or poppler-utils) |
 | Gate 3 kit (`package-pdftex-kit.sh`) | Host-tested | Artifact `TLPdfTeX-f0c69cd3b61b.zip`, 34.8 MB, 5682 tree files, with the reference PDFs; no file names that RISC OS might mangle. Gate 3 is [#17](https://github.com/kierennicolas/ArmTex_update/issues/17); procedure in [`testing.md`](testing.md#gate-3-pdftex-on-titanium) |
-| `!TeXLive` application (`package-release.sh`, `riscos/app/!TeXLive`) | Implemented | `!Boot` and `!Run` define `pdflatex`, `pdftex` and `kpsewhich`; packaged as `TeXLive-2026-dev-<commit>.zip`. First CI run pending ([#18](https://github.com/kierennicolas/ArmTex_update/pull/18)) |
+| `!TeXLive` application (`package-release.sh`, `riscos/app/!TeXLive`) | Host-tested; Emulator-tested | [Run 39838947779](https://github.com/kierennicolas/ArmTex_update/actions/runs/39838947779) ([#18](https://github.com/kierennicolas/ArmTex_update/pull/18)): packaged as `TeXLive-2026-dev-<commit>.zip` (34.7 MB, 5682 tree files). Under the emulator, its `!Boot` and `!Run` define `pdflatex`, `pdftex` and `kpsewhich`, and the two test documents typeset through those commands give PDFs identical to the host's apart from `/ID`. Indicative only |
 
 ## Known failures
 

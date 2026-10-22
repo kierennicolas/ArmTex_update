@@ -155,6 +155,7 @@ class Entry:
 class Image:
     def __init__(self, handle):
         self.handle = handle
+        self._listings = {}  # (extent offset, size) -> {name: Entry}
         self.block_size = SECTOR
         primary = joliet = None
         sector = DESCRIPTORS_START
@@ -258,7 +259,13 @@ class Image:
         return name
 
     def listdir(self, directory):
-        """{name: Entry} for a directory record."""
+        """{name: Entry} for a directory record. Each directory is read once:
+        TeX Live's archive directory is a few MB, and reading it again for
+        every file taken from it costs hundreds of MB over HTTP."""
+        key = directory[3:5]
+        cache = self._listings
+        if key in cache:
+            return cache[key]
         entries = {}
         for record in self._records(directory):
             ident, flags, _, offset, size = record
@@ -270,6 +277,7 @@ class Image:
                 entries[name] = Entry(name, bool(flags & 0x02), [(offset, size)])
             else:  # a further extent of a multi-extent file
                 entry.extents.append((offset, size))
+        cache[key] = entries
         return entries
 
     def _directory_record(self, entry):

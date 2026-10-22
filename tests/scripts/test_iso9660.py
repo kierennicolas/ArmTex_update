@@ -142,6 +142,11 @@ class HttpRangeTest(unittest.TestCase):
             self.assertEqual(read(img, f"archive/{LONG}"), b"long-named container\n")
             # Only the parts read were fetched, not the whole image.
             self.assertLess(remote.fetched, len(data))
+            # Directories are read once, however many files come from them.
+            requests = remote.requests
+            for _ in range(5):
+                img.lookup("archive/plain.tar.xz")
+            self.assertEqual(remote.requests, requests)
 
     def test_large_reads_are_exact(self):
         url, data = self.serve()
